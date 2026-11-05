@@ -9,7 +9,7 @@ function App() {
     const checkBackend = async () => {
       try {
         const response = await fetch(
-          "http://localhost:5000/api/health"
+          "/api/health"
         );
 
         if (!response.ok) {
