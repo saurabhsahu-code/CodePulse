@@ -1,7 +1,7 @@
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import repositoryRoutes from "./routes/repositoryRoutes.js";
 
 dotenv.config();
 
@@ -29,6 +29,9 @@ app.get("/api/health", (req, res) => {
     message: "CodePulse API is running",
   });
 });
+
+// Repository API routes
+app.use("/api/repositories", repositoryRoutes);
 
 // Start server
 app.listen(PORT, () => {
