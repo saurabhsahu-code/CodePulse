@@ -1,54 +1,74 @@
+
 const GITHUB_API = "https://api.github.com";
 
-export const getRepositoryDetails = async (owner, repository) => {
-  const response = await fetch(
-    `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`,
-    {
-      method: "GET",
-      headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "CodePulse",
-      },
-      signal: AbortSignal.timeout(10000),
-    }
-  );
+const getGitHubHeaders = () => ({
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+  "User-Agent": "CodePulse",
+});
+
+// Handles GitHub API responses consistently.
+const handleGitHubResponse = async (response) => {
+  if (response.ok) {
+    return {
+      success: true,
+      data: await response.json(),
+    };
+  }
 
   if (response.status === 404) {
     return {
       success: false,
       statusCode: 404,
-      message: "Repository not found or is not publicly accessible.",
+      message: "Repository or requested resource not found.",
     };
   }
 
-  if (response.status === 403 || response.status === 429) {
-    const remaining = response.headers.get("x-ratelimit-remaining");
+  if (
+    response.status === 429 ||
+    (response.status === 403 &&
+      response.headers.get("x-ratelimit-remaining") === "0")
+  ) {
+    return {
+      success: false,
+      statusCode: 429,
+      message: "GitHub API rate limit exceeded.",
+    };
+  }
 
-    if (remaining === "0" || response.status === 429) {
-      return {
-        success: false,
-        statusCode: 429,
-        message: "GitHub API rate limit exceeded. Please try again later.",
-      };
-    }
-
+  if (response.status === 403) {
     return {
       success: false,
       statusCode: 403,
-      message: "GitHub denied the repository request.",
+      message: "GitHub denied the API request.",
     };
   }
 
-  if (!response.ok) {
-    return {
-      success: false,
-      statusCode: 502,
-      message: "Unable to retrieve repository information from GitHub.",
-    };
+  return {
+    success: false,
+    statusCode: 502,
+    message: "Unable to retrieve information from GitHub.",
+  };
+};
+
+// Feature 3.1: Retrieve repository metadata.
+export const getRepositoryDetails = async (owner, repository) => {
+  const response = await fetch(
+    `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`,
+    {
+      method: "GET",
+      headers: getGitHubHeaders(),
+      signal: AbortSignal.timeout(10000),
+    }
+  );
+
+  const result = await handleGitHubResponse(response);
+
+  if (!result.success) {
+    return result;
   }
 
-  const data = await response.json();
+  const data = result.data;
 
   return {
     success: true,
@@ -67,6 +87,36 @@ export const getRepositoryDetails = async (owner, repository) => {
       createdAt: data.created_at,
       updatedAt: data.updated_at,
       language: data.language,
+    },
+  };
+};
+
+// Feature 3.2: Retrieve the repository file tree.
+export const getRepositoryTree = async (
+  owner,
+  repository,
+  defaultBranch
+) => {
+  const response = await fetch(
+    `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/trees/${encodeURIComponent(defaultBranch)}?recursive=1`,
+    {
+      method: "GET",
+      headers: getGitHubHeaders(),
+      signal: AbortSignal.timeout(20000),
+    }
+  );
+
+  const result = await handleGitHubResponse(response);
+
+  if (!result.success) {
+    return result;
+  }
+
+  return {
+    success: true,
+    data: {
+      tree: result.data.tree,
+      truncated: result.data.truncated,
     },
   };
 };
