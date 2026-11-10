@@ -14,26 +14,21 @@ const EXCLUDED_DIRECTORIES = new Set([
 ]);
 
 // Recognized source-code extensions.
-// Supporting files such as JSON, Markdown and YAML are intentionally excluded.
 const SOURCE_LANGUAGE_MAP = {
   js: "JavaScript",
   jsx: "JavaScript",
   mjs: "JavaScript",
   cjs: "JavaScript",
-
   ts: "TypeScript",
   tsx: "TypeScript",
-
   py: "Python",
   java: "Java",
-
   cpp: "C++",
   cc: "C++",
   cxx: "C++",
   c: "C",
   h: "C/C++ Header",
   hpp: "C++",
-
   cs: "C#",
   php: "PHP",
   rb: "Ruby",
@@ -42,20 +37,16 @@ const SOURCE_LANGUAGE_MAP = {
   swift: "Swift",
   kt: "Kotlin",
   dart: "Dart",
-
   html: "HTML",
   css: "CSS",
   scss: "SCSS",
   sass: "Sass",
-
   sql: "SQL",
   sh: "Shell",
   bat: "Batch",
   ps1: "PowerShell",
-
   vue: "Vue",
   svelte: "Svelte",
-
   ex: "Elixir",
   exs: "Elixir",
   hs: "Haskell",
@@ -100,6 +91,7 @@ export const analyzeFileTree = (tree) => {
 
   const extensions = {};
   const languages = {};
+  const sourceFileSizes = [];
 
   // Count extensions across all repository files.
   for (const file of allFiles) {
@@ -108,7 +100,7 @@ export const analyzeFileTree = (tree) => {
     extensions[extension] = (extensions[extension] || 0) + 1;
   }
 
-  // Count only recognized source-code files as languages.
+  // Count recognized source files and collect their sizes.
   let sourceFiles = 0;
 
   for (const file of analysisFiles) {
@@ -119,6 +111,17 @@ export const analyzeFileTree = (tree) => {
       sourceFiles++;
 
       languages[language] = (languages[language] || 0) + 1;
+
+      if (
+        Number.isFinite(file.size) &&
+        file.size >= 0
+      ) {
+        sourceFileSizes.push({
+          path: file.path,
+          size: file.size,
+          language,
+        });
+      }
     }
   }
 
@@ -143,5 +146,8 @@ export const analyzeFileTree = (tree) => {
 
     extensions,
     languages,
+
+    // Internal input for Feature 3.4 anomaly detection.
+    sourceFileSizes,
   };
 };

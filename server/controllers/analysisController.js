@@ -8,6 +8,7 @@ import {
 
 import { analyzeFileTree } from "../utils/fileAnalyzer.js";
 import { analyzeRepositoryHealth } from "../utils/healthAnalyzer.js";
+import { analyzeFileSizeAnomalies } from "../utils/anomalyAnalyzer.js";
 
 export const analyzeRepository = async (req, res) => {
   try {
@@ -55,19 +56,28 @@ export const analyzeRepository = async (req, res) => {
     // Step 4: Analyze the retrieved file tree.
     const analysis = analyzeFileTree(treeResult.data.tree);
 
-    // Step 5: Add file-tree completeness information.
+    // Step 5: Run file-size anomaly detection.
+    const anomalies = analyzeFileSizeAnomalies(
+      analysis.sourceFileSizes
+    );
+
+    // Keep the raw source-file size list internal.
+    const treeAnalysis = { ...analysis };
+    delete treeAnalysis.sourceFileSizes;
+
+    // Step 6: Add file-tree completeness information.
     const tree = {
-      ...analysis,
+      ...treeAnalysis,
       truncated: treeResult.data.truncated,
       completeness: treeResult.data.truncated
         ? "incomplete"
         : "complete",
     };
 
-    // Step 6: Calculate repository health indicators.
+    // Step 7: Calculate repository health indicators.
     const health = analyzeRepositoryHealth(metadata, tree);
 
-    // Step 7: Return structured analysis results.
+    // Step 8: Return structured analysis results.
     return res.status(200).json({
       success: true,
       message: tree.truncated
@@ -78,6 +88,10 @@ export const analyzeRepository = async (req, res) => {
         metadata,
         tree,
         health,
+        anomalies: {
+          ...anomalies,
+          sourceTreeTruncated: tree.truncated,
+        },
       },
     });
   } catch (error) {
