@@ -124,6 +124,12 @@ export const analyzeFileTree = (tree) => {
 
   const supportingFiles = analysisFiles.length - sourceFiles;
 
+  const hasReadme = analysisFiles.some((file) => {
+    const fileName = file.path.split("/").pop().toLowerCase();
+
+    return /^readme(?:\.[^.]*)?$/.test(fileName);
+  });
+
   return {
     totalFiles: allFiles.length,
     totalDirectories: allDirectories.length,
@@ -132,6 +138,8 @@ export const analyzeFileTree = (tree) => {
     sourceFiles,
     supportingFiles,
     excludedFiles: allFiles.length - analysisFiles.length,
+
+    hasReadme,
 
     extensions,
     languages,

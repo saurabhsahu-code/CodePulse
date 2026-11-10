@@ -86,6 +86,10 @@ export const getRepositoryDetails = async (owner, repository) => {
       defaultBranch: data.default_branch,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
+      pushedAt: data.pushed_at,
+      archived: data.archived,
+      disabled: data.disabled,
+      hasIssues: data.has_issues,
       language: data.language,
     },
   };

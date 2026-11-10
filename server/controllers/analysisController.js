@@ -7,6 +7,7 @@ import {
 } from "../services/githubService.js";
 
 import { analyzeFileTree } from "../utils/fileAnalyzer.js";
+import { analyzeRepositoryHealth } from "../utils/healthAnalyzer.js";
 
 export const analyzeRepository = async (req, res) => {
   try {
@@ -54,22 +55,29 @@ export const analyzeRepository = async (req, res) => {
     // Step 4: Analyze the retrieved file tree.
     const analysis = analyzeFileTree(treeResult.data.tree);
 
-    // Step 5: Return structured analysis results.
+    // Step 5: Add file-tree completeness information.
+    const tree = {
+      ...analysis,
+      truncated: treeResult.data.truncated,
+      completeness: treeResult.data.truncated
+        ? "incomplete"
+        : "complete",
+    };
+
+    // Step 6: Calculate repository health indicators.
+    const health = analyzeRepositoryHealth(metadata, tree);
+
+    // Step 7: Return structured analysis results.
     return res.status(200).json({
       success: true,
-      message: treeResult.data.truncated
+      message: tree.truncated
         ? "Repository analysis completed with a truncated file tree."
         : "Repository analysis completed successfully.",
 
       data: {
         metadata,
-        tree: {
-          ...analysis,
-          truncated: treeResult.data.truncated,
-          completeness: treeResult.data.truncated
-            ? "incomplete"
-            : "complete",
-        },
+        tree,
+        health,
       },
     });
   } catch (error) {

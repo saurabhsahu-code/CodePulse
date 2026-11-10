@@ -4,7 +4,7 @@
 
 CodePulse is a web-based repository analysis platform designed to help developers understand the health, maintainability, and potential risks of their software projects.
 
-It aims to transform repository information into understandable insights through structured analysis, visual indicators, and explainable recommendations.
+It transforms repository information into understandable insights through structured analysis, transparent health indicators, and explainable recommendations.
 
 **Development status:** Active development
 
@@ -54,7 +54,7 @@ CodePulse aims to bring relevant repository health indicators together and prese
 **3. GitHub Repository Integration**
 - GitHub repository URL validation.
 - Public repository metadata retrieval through the GitHub REST API.
-- Repository information including name, owner, description, stars, forks, default branch, and primary language.
+- Repository information including name, owner, description, stars, forks, default branch, primary language, last push date, archived status, disabled status, and issue-tracking availability.
 - Error handling for invalid URLs, unavailable repositories, and API rate limits.
 
 **4. Repository File-Tree Analysis**
@@ -64,19 +64,32 @@ CodePulse aims to bring relevant repository health indicators together and prese
 - Source-code and supporting-file classification.
 - Programming-language distribution based on file extensions.
 - Exclusion of selected generated and dependency directories.
+- README file detection.
 - Detection of incomplete GitHub file-tree responses.
+
+**5. Repository Health Indicators**
+- Maintenance activity assessment based on the last repository push date.
+- Repository status detection (active, archived, or disabled).
+- GitHub issue-tracking status.
+- Informational count of open issues and pull requests.
+- README documentation detection.
+- Codebase composition summary.
+- Analysis completeness assessment.
+- Overall health status based on transparent indicator rules.
+- Individual explanations for each health indicator.
+- No arbitrary numerical health score.
 
 ### Planned Features
 
 The following features are part of the intended product scope and are not yet fully implemented:
 
-- **Repository Health Dashboard:** Present meaningful repository health indicators.
 - **Anomaly Detection:** Identify unusual patterns in repository metrics.
 - **Explainable Insights:** Explain why a potential issue or anomaly has been identified.
-- **Maintenance Indicators:** Highlight areas that may require developer attention.
-- **Recommendations:** Provide actionable suggestions based on analysis results.
+- **Advanced Recommendations:** Provide actionable suggestions based on analysis results.
 - **Historical Monitoring:** Track changes in repository health over time.
 - **Advanced Analysis:** Extend repository analysis with additional maintainability and code-quality metrics.
+- **Dashboard Integration:** Present live repository analysis and health indicators through the frontend.
+- **Database Integration:** Store repository analysis results and historical data.
 
 ## 5. Technology Stack
 
@@ -89,7 +102,7 @@ The following features are part of the intended product scope and are not yet fu
 | API Framework | Express.js | REST API development |
 | Repository Integration | GitHub REST API | Repository data retrieval |
 | Version Control | Git and GitHub | Source-code management |
-| Analysis Engine | JavaScript | Repository file analysis |
+| Analysis Engine | JavaScript | Repository file and health analysis |
 | Database | MongoDB | Planned data persistence |
 | Visualization | To be selected | Dashboard charts and metrics |
 | AI/ML | To be evaluated | Future anomaly detection and recommendations |
@@ -100,7 +113,7 @@ Technology selections may evolve as development progresses.
 
 CodePulse currently supports analysis of publicly accessible GitHub repositories.
 
-The analysis provides the following information:
+The file-tree analysis provides the following information:
 
 | Metric | Description |
 |---|---|
@@ -112,9 +125,65 @@ The analysis provides the following information:
 | Excluded Files | Files inside selected excluded directories |
 | Languages | Extension-based programming-language distribution |
 | Extensions | Distribution of file extensions |
+| README Detection | Whether a README file exists in the analyzed file tree |
 | Completeness | Whether GitHub returned a complete file tree |
 
-**Current limitation:** Programming-language classification is based on file extensions. It does not yet inspect source-code contents or reproduce GitHub Linguist's language-detection algorithm.
+### Repository Health Indicators
+
+CodePulse evaluates repository health using seven transparent indicators:
+
+| Indicator | What It Evaluates |
+|---|---|
+| Maintenance Activity | Days since the last repository push |
+| Repository Status | Whether the repository is active, archived, or disabled |
+| Issue Tracking | Whether GitHub issue tracking is enabled |
+| Open Work Items | Number of open issues and pull requests |
+| Documentation | Whether a README file exists |
+| Codebase Composition | File counts and programming-language distribution |
+| Analysis Completeness | Whether GitHub returned the complete file tree |
+
+#### Health Status Categories
+
+| Status | Meaning |
+|---|---|
+| Good | No identified concern in the indicator |
+| Moderate | A condition that may require monitoring |
+| Needs Attention | A condition that may require developer attention |
+| Unknown | Required information is unavailable |
+| Info | Informational data that is not treated as a quality concern |
+
+#### Maintenance Activity Thresholds
+
+| Days Since Last Push | Status |
+|---|---|
+| 0–30 days | Good |
+| 31–90 days | Moderate |
+| More than 90 days | Needs Attention |
+
+These thresholds are CodePulse heuristics and are not universal software-quality standards.
+
+#### Overall Health Status
+
+The overall status is determined by the individual indicator statuses:
+
+1. **Needs Attention:** At least one indicator requires attention.
+2. **Incomplete:** No indicator requires attention, but at least one is unknown.
+3. **Moderate:** No indicator requires attention or is unknown, but at least one is moderate.
+4. **Good:** None of the above conditions apply.
+
+Informational indicators do not negatively affect the overall status.
+
+**Important design decision:** CodePulse does not currently calculate an arbitrary percentage-based health score. Individual indicators and their explanations are presented to keep the assessment transparent.
+
+#### Current Limitations
+
+- Maintenance activity uses the last push date and does not independently measure development quality.
+- Open work-item counts include issues and pull requests and are informational only.
+- README detection checks filenames in the analyzed file tree; it does not evaluate documentation quality.
+- Language classification is based on file extensions. It does not inspect source-code contents or reproduce GitHub Linguist's language-detection algorithm.
+- A truncated GitHub file tree can affect the completeness of analysis.
+- Health indicators are heuristic assessments, not definitive measurements of software quality.
+- Anomaly detection and AI/ML-based recommendations are not yet implemented.
 
 ## 7. Backend API
 
@@ -125,7 +194,7 @@ The current backend exposes the following endpoints:
 | GET | `/` | Backend welcome route |
 | GET | `/api/health` | API health check |
 | POST | `/api/repositories/validate` | Validate a GitHub repository URL |
-| POST | `/api/repositories/analyze` | Retrieve repository metadata and analyze its file tree |
+| POST | `/api/repositories/analyze` | Retrieve repository metadata and analyze its file tree and health indicators |
 
 ### Repository Analysis Request
 
@@ -141,7 +210,60 @@ The current backend exposes the following endpoints:
 }
 ```
 
-The response includes repository metadata and file-tree analysis results.
+The successful response contains three main data sections:
+
+- **metadata:** Repository details retrieved from GitHub.
+- **tree:** File counts, language distribution, README detection, and file-tree completeness.
+- **health:** Overall health status and seven individual health indicators with values, statuses, and explanations.
+
+### Health Response Structure
+
+The health section follows this general structure:
+
+```json
+{
+  "overallStatus": "good",
+  "indicators": {
+    "maintenance": {
+      "value": 0,
+      "status": "good",
+      "explanation": "The repository has received a recent code push."
+    },
+    "repositoryStatus": {
+      "value": "active",
+      "status": "good",
+      "explanation": "The repository is not archived or disabled."
+    },
+    "issueTracking": {
+      "value": true,
+      "status": "good",
+      "explanation": "GitHub issue tracking is enabled."
+    },
+    "openWorkItems": {
+      "value": 0,
+      "status": "info",
+      "explanation": "This count includes open issues and pull requests. It is informational, not a quality score."
+    },
+    "documentation": {
+      "value": true,
+      "status": "good",
+      "explanation": "A README file was found in the repository."
+    },
+    "codebase": {
+      "value": {},
+      "status": "info",
+      "explanation": "File counts and language distribution describe repository composition, not code quality."
+    },
+    "analysisCompleteness": {
+      "value": "complete",
+      "status": "good",
+      "explanation": "The complete file tree was retrieved successfully."
+    }
+  }
+}
+```
+
+The values shown above are illustrative. Actual results depend on the repository being analyzed.
 
 ## 8. Project Structure
 
@@ -172,7 +294,8 @@ CodePulse/
 │   │   └── githubService.js
 │   ├── utils/
 │   │   ├── fileAnalyzer.js
-│   │   └── githubValidator.js
+│   │   ├── githubValidator.js
+│   │   └── healthAnalyzer.js
 │   ├── server.js
 │   └── package.json
 │
@@ -264,7 +387,7 @@ Each module is developed, tested, reviewed, and documented before moving to the 
 | GitHub repository validation | Implemented and tested |
 | Repository metadata retrieval | Implemented and tested |
 | File-tree analysis | Implemented and tested |
-| Repository health indicators | Planned |
+| Repository health indicators | Implemented and tested |
 | Anomaly detection | Planned |
 | Explainable insights | Planned |
 | Dashboard integration with live analysis | Pending |
@@ -282,6 +405,6 @@ The goal is to help developers move beyond raw repository statistics and underst
 ---
 
 **Project:** CodePulse  
-**Category:** Software Development / Repository Analytics  
+**Category:** Software Development / Repository Analytics
 **Development Status:** Active Development
 **Repository:** https://github.com/saurabhsahu-code/CodePulse
