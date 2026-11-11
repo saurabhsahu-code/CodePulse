@@ -4,9 +4,9 @@
 
 CodePulse is a web-based repository analysis platform designed to help developers understand the health, maintainability, and potential risks of their software projects.
 
-It transforms repository information into understandable insights through structured analysis, transparent health indicators, and explainable anomaly detection.
+It transforms repository information into understandable insights through structured analysis, transparent health indicators, explainable anomaly detection, and visual codebase analytics.
 
-**Development status:** Active development
+**Development Status:** Active Development
 
 ---
 
@@ -25,6 +25,7 @@ CodePulse aims to bring relevant repository health indicators together and prese
 - Provide understandable explanations for detected issues.
 - Highlight maintainability concerns and potential risks.
 - Present repository insights through a visual dashboard.
+- Visualize programming-language distribution and codebase composition.
 - Help developers make informed maintenance decisions.
 
 ## 3. Target Users
@@ -113,6 +114,18 @@ CodePulse aims to bring relevant repository health indicators together and prese
 - Detected-file list showing file paths, programming languages, file sizes, thresholds, and explanations.
 - Dynamic rendering of analysis results returned by the backend instead of hardcoded demonstration data.
 
+**8. Language Distribution and Codebase Visualization**
+
+- Visual representation of programming-language distribution.
+- Proportional horizontal distribution bar showing the relative contribution of each detected language.
+- Individual language breakdown with file counts and percentages.
+- Languages automatically sorted in descending order by file count.
+- Dynamic percentage calculation using the total number of language-classified files.
+- Consistent color coding between the distribution bar and individual language entries.
+- Data obtained directly from the repository analysis API.
+- Empty-state handling when language distribution data is unavailable.
+- Implemented using React and Tailwind CSS without an additional chart-library dependency.
+
 ### Planned Features
 
 The following features are part of the intended product scope and are not yet fully implemented:
@@ -133,15 +146,15 @@ The following features are part of the intended product scope and are not yet fu
 |---|---|---|
 | Frontend | React.js | User interface |
 | Build Tool | Vite | Frontend development and build |
-| Styling | Tailwind CSS | Dashboard styling |
+| Styling | Tailwind CSS | Dashboard styling and visualization |
 | Backend | Node.js | Server-side execution |
 | API Framework | Express.js | REST API development |
 | Repository Integration | GitHub REST API | Repository data retrieval |
 | Version Control | Git and GitHub | Source-code management |
 | Analysis Engine | JavaScript | Repository file, health, and anomaly analysis |
 | Statistical Method | Log-transformed IQR | File-size outlier detection |
+| Visualization | React and Tailwind CSS | Language distribution visualization |
 | Database | MongoDB | Planned data persistence |
-| Visualization | To be selected | Future dashboard charts and metrics |
 | AI/ML | To be evaluated | Future anomaly detection and recommendations |
 
 Technology selections may evolve as development progresses.
@@ -282,6 +295,36 @@ These values make the detection process more transparent and interpretable.
 - A truncated GitHub file tree can affect the completeness of anomaly detection.
 - The current implementation does not use a trained machine-learning model.
 
+### Language Distribution Analysis
+
+CodePulse uses the programming-language counts produced by repository file-tree analysis to visualize codebase composition.
+
+The frontend receives the language distribution from the analysis response and dynamically generates the visualization.
+
+#### Visualization Method
+
+1. Retrieve the language-count object from the repository analysis response.
+2. Convert the language entries into a list of language names and file counts.
+3. Sort the languages in descending order by file count.
+4. Calculate the total number of language-classified files.
+5. Calculate each language's percentage:
+
+   `Language Percentage = (Language File Count / Total Language Files) × 100`
+
+6. Display a proportional distribution bar and individual language breakdowns.
+
+#### Visualization Components
+
+- **Proportional Distribution Bar:** Shows the relative contribution of each detected language.
+- **Language Breakdown:** Displays each language's name, file count, and percentage.
+- **Color Coding:** Uses consistent colors to distinguish languages across the chart and breakdown.
+- **Dynamic Sorting:** Automatically places languages with more files before those with fewer files.
+- **Empty State:** Displays an explanatory message when language data is unavailable.
+
+The visualization uses React and Tailwind CSS and does not require an additional charting library.
+
+**Important:** Language percentages are calculated from the files classified into programming-language groups. They do not necessarily represent the percentage of every file in the repository.
+
 ### General Analysis Limitations
 
 - Maintenance activity uses the last push date and does not independently measure development quality.
@@ -301,6 +344,8 @@ The CodePulse frontend presents the analysis results returned by the backend thr
 ### Repository Input
 
 Users can enter a public GitHub repository URL and start an analysis.
+
+The dashboard displays loading feedback while the request is being processed and provides error messages when the analysis request fails.
 
 ### Repository Overview
 
@@ -333,17 +378,20 @@ The anomaly dashboard presents:
 - Individual detected-file entries.
 - File path, language, file size, detection threshold, and explanation for each detected anomaly.
 
-The dashboard uses live analysis results rather than hardcoded sample metrics.
+### Language Distribution Visualization
 
-Live Repository Analysis Dashboard
-- Connects the React frontend to the repository analysis API.
-- Accepts GitHub repository URLs for live analysis.
-- Displays repository metadata and codebase metrics.
-- Presents all seven repository health indicators and their explanations.
-- Displays anomaly detection status, method, and sample size.
-- Shows language-specific detection thresholds.
-- Lists detected files with file sizes, thresholds, and explanations.
-- Displays API errors and loading states.
+The dashboard includes a dedicated Language Distribution section below the Codebase Summary.
+
+It presents:
+
+- A proportional horizontal bar showing the distribution of detected programming languages.
+- Individual language entries with file counts.
+- Percentage contribution of each language.
+- Consistent colors for each language.
+- Languages sorted by file count in descending order.
+- A total count of language-classified files.
+
+The visualization is generated dynamically from the backend analysis response. It does not use hardcoded language counts or demonstration data.
 
 ---
 
@@ -378,6 +426,8 @@ The successful response contains four main data sections:
 - **tree:** File counts, language distribution, README detection, and file-tree completeness.
 - **health:** Overall health status and seven individual health indicators with values, statuses, and explanations.
 - **anomalies:** File-size anomaly detection status, statistical method, language-specific thresholds, detected files, and explanations.
+
+The frontend uses the `tree.languages` data from the analysis response to generate the Language Distribution visualization.
 
 ### Anomaly Response Structure
 
@@ -579,8 +629,9 @@ CodePulse follows an incremental development workflow:
 5. Repository health indicators.
 6. File-size anomaly detection.
 7. Live dashboard integration.
-8. Explainable insights and advanced analysis.
-9. Testing, refinement, documentation, and deployment.
+8. Language distribution and codebase visualization.
+9. Explainable insights and advanced analysis.
+10. Testing, refinement, documentation, and deployment.
 
 Each module is developed, tested, reviewed, and documented before moving to the next stage.
 
@@ -603,8 +654,9 @@ Each module is developed, tested, reviewed, and documented before moving to the 
 | Live repository overview dashboard | Implemented and tested |
 | Repository health dashboard | Implemented and tested |
 | File-size anomaly dashboard | Implemented and tested |
+| Language distribution visualization | Implemented and tested |
 | Advanced recommendations | Planned |
-| Database integration | Implemented |
+| Database integration | Planned |
 | Historical monitoring | Planned |
 | Advanced AI/ML analysis | Planned |
 | Deployment | Planned |
@@ -613,7 +665,7 @@ Each module is developed, tested, reviewed, and documented before moving to the 
 
 ## 13. Project Vision
 
-The long-term vision of CodePulse is to make repository health easier to understand by combining meaningful software metrics, statistical anomaly detection, and explainable recommendations in one platform.
+The long-term vision of CodePulse is to make repository health easier to understand by combining meaningful software metrics, statistical anomaly detection, visual codebase analytics, and explainable recommendations in one platform.
 
 CodePulse is intended to complement existing development and code-quality tools rather than simply duplicate their functionality.
 

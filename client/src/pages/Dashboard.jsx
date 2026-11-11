@@ -50,6 +50,31 @@ function Dashboard() {
   const tree = analysis?.tree;
   const health = analysis?.health;
 
+  const languageDistribution = Object.entries(
+    tree?.languages ?? {}
+  )
+    .map(([language, count]) => ({
+      language,
+      count,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const totalLanguageFiles = languageDistribution.reduce(
+    (total, item) => total + item.count,
+    0
+  );
+
+  const languageColors = [
+    "bg-blue-500",
+    "bg-violet-500",
+    "bg-emerald-500",
+    "bg-amber-500",
+    "bg-rose-500",
+    "bg-cyan-500",
+    "bg-indigo-500",
+    "bg-orange-500",
+  ];
+
   const healthIndicators = health
     ? [
       { key: "maintenance", label: "Maintenance Activity" },
@@ -312,7 +337,7 @@ function Dashboard() {
           </div>
         </section>
       )}
-            {/* File-size anomaly dashboard */}
+      {/* File-size anomaly dashboard */}
       {anomalyData && (
         <section className="space-y-5">
           <div>
@@ -335,10 +360,9 @@ function Dashboard() {
                 </p>
 
                 <span
-                  className={`mt-2 inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${
-                    anomalyStatusStyles[anomalyData.status] ||
+                  className={`mt-2 inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${anomalyStatusStyles[anomalyData.status] ||
                     "bg-slate-100 text-slate-600"
-                  }`}
+                    }`}
                 >
                   {anomalyData.status.replaceAll("_", " ").toUpperCase()}
                 </span>
@@ -491,6 +515,93 @@ function Dashboard() {
           </div>
         </section>
       )}
+
+      {/* Language distribution */}
+      {tree && (
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Language Distribution
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Breakdown of source files by detected programming language.
+            </p>
+          </div>
+
+          {languageDistribution.length > 0 ? (
+            <div className="mt-6 space-y-5">
+              <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+                {languageDistribution.map((item, index) => {
+                  const percentage =
+                    (item.count / totalLanguageFiles) * 100;
+
+                  return (
+                    <div
+                      key={item.language}
+                      className={`${languageColors[index % languageColors.length]} h-full`}
+                      style={{ width: `${percentage}%` }}
+                      title={`${item.language}: ${percentage.toFixed(1)}%`}
+                    />
+                  );
+                })}
+              </div>
+
+              <div className="space-y-4">
+                {languageDistribution.map((item, index) => {
+                  const percentage =
+                    (item.count / totalLanguageFiles) * 100;
+
+                  return (
+                    <div key={item.language}>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-3 w-3 rounded-sm ${languageColors[index % languageColors.length]
+                              }`}
+                          />
+
+                          <span className="text-sm font-medium text-slate-700">
+                            {item.language}
+                          </span>
+                        </div>
+
+                        <div className="text-right text-sm">
+                          <span className="font-semibold text-slate-900">
+                            {item.count.toLocaleString()}
+                          </span>
+
+                          <span className="ml-2 text-slate-500">
+                            {percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${languageColors[index % languageColors.length]
+                            }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="border-t border-slate-100 pt-4 text-xs text-slate-500">
+                Total language-classified files:{" "}
+                {totalLanguageFiles.toLocaleString()}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
+              No language distribution data is available for this repository.
+            </p>
+          )}
+        </section>
+      )}
+
     </div>
   );
 }
