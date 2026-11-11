@@ -42,9 +42,9 @@ CodePulse aims to bring relevant repository health indicators together and prese
 **1. Frontend Foundation**
 
 - React.js application using Vite.
-- Initial dashboard interface.
+- Dashboard interface with a light visual theme.
 - Reusable Header and Sidebar components.
-- Basic dashboard layout and styling.
+- Responsive dashboard layout and styling.
 
 **2. Backend Foundation**
 
@@ -98,6 +98,21 @@ CodePulse aims to bring relevant repository health indicators together and prese
 - Handling of insufficient data when no language group has enough files.
 - Detection results include sample size, analyzed groups, skipped groups, thresholds, and anomaly counts.
 
+**7. Live Repository Analysis Dashboard**
+
+- Integration of the React frontend with the repository analysis API.
+- Repository URL input and analysis action.
+- Live repository metadata display.
+- Repository overview metrics including stars, forks, open issues, and primary language.
+- Codebase summary displaying total files, directories, source files, and supporting files.
+- Overall repository health status.
+- Seven individual health indicator cards with values, statuses, and explanations.
+- File-size anomaly detection summary.
+- Display of the statistical detection method and number of analyzed files.
+- Language-specific detection threshold cards.
+- Detected-file list showing file paths, programming languages, file sizes, thresholds, and explanations.
+- Dynamic rendering of analysis results returned by the backend instead of hardcoded demonstration data.
+
 ### Planned Features
 
 The following features are part of the intended product scope and are not yet fully implemented:
@@ -106,9 +121,9 @@ The following features are part of the intended product scope and are not yet fu
 - **Advanced Recommendations:** Provide actionable suggestions based on analysis results.
 - **Historical Monitoring:** Track changes in repository health over time.
 - **Advanced Analysis:** Extend repository analysis with additional maintainability and code-quality metrics.
-- **Dashboard Integration:** Present live repository analysis, health indicators, and anomaly results through the frontend.
 - **Database Integration:** Store repository analysis results and historical data.
 - **AI/ML Exploration:** Evaluate whether machine-learning techniques can improve future repository analysis and recommendations.
+- **Deployment:** Deploy the frontend and backend for public access.
 
 ---
 
@@ -118,7 +133,7 @@ The following features are part of the intended product scope and are not yet fu
 |---|---|---|
 | Frontend | React.js | User interface |
 | Build Tool | Vite | Frontend development and build |
-| Styling | CSS | Dashboard styling |
+| Styling | Tailwind CSS | Dashboard styling |
 | Backend | Node.js | Server-side execution |
 | API Framework | Express.js | REST API development |
 | Repository Integration | GitHub REST API | Repository data retrieval |
@@ -126,18 +141,20 @@ The following features are part of the intended product scope and are not yet fu
 | Analysis Engine | JavaScript | Repository file, health, and anomaly analysis |
 | Statistical Method | Log-transformed IQR | File-size outlier detection |
 | Database | MongoDB | Planned data persistence |
-| Visualization | To be selected | Dashboard charts and metrics |
+| Visualization | To be selected | Future dashboard charts and metrics |
 | AI/ML | To be evaluated | Future anomaly detection and recommendations |
 
 Technology selections may evolve as development progresses.
 
 ---
 
-## 6. Current Repository Analysis
+## 6. Repository Analysis and Methodology
 
 CodePulse currently supports analysis of publicly accessible GitHub repositories.
 
-The file-tree analysis provides the following information:
+The analysis process retrieves repository metadata and its file tree, calculates repository metrics, evaluates health indicators, and detects unusually large source files.
+
+### Repository File-Tree Analysis
 
 | Metric | Description |
 |---|---|
@@ -265,7 +282,7 @@ These values make the detection process more transparent and interpretable.
 - A truncated GitHub file tree can affect the completeness of anomaly detection.
 - The current implementation does not use a trained machine-learning model.
 
-### Current Limitations
+### General Analysis Limitations
 
 - Maintenance activity uses the last push date and does not independently measure development quality.
 - Open work-item counts include issues and pull requests and are informational only.
@@ -277,7 +294,60 @@ These values make the detection process more transparent and interpretable.
 
 ---
 
-## 7. Backend API
+## 7. Live Dashboard
+
+The CodePulse frontend presents the analysis results returned by the backend through a single dashboard.
+
+### Repository Input
+
+Users can enter a public GitHub repository URL and start an analysis.
+
+### Repository Overview
+
+The dashboard displays:
+
+- Repository name and description.
+- Repository visibility.
+- Default branch.
+- GitHub repository link.
+- Stars, forks, and open issues.
+- Primary programming language.
+- Total files and directories.
+- Source files and supporting files.
+
+### Repository Health
+
+The dashboard displays the overall health status and seven individual indicators.
+
+Each indicator includes its status, corresponding value, and explanation. Informational indicators are visually distinguished from indicators requiring attention.
+
+### Anomaly Dashboard
+
+The anomaly dashboard presents:
+
+- Detection status and total anomaly count.
+- Number of source files analyzed.
+- Statistical detection method.
+- Language-specific upper thresholds.
+- Sample size and anomaly count for each language.
+- Individual detected-file entries.
+- File path, language, file size, detection threshold, and explanation for each detected anomaly.
+
+The dashboard uses live analysis results rather than hardcoded sample metrics.
+
+Live Repository Analysis Dashboard
+- Connects the React frontend to the repository analysis API.
+- Accepts GitHub repository URLs for live analysis.
+- Displays repository metadata and codebase metrics.
+- Presents all seven repository health indicators and their explanations.
+- Displays anomaly detection status, method, and sample size.
+- Shows language-specific detection thresholds.
+- Lists detected files with file sizes, thresholds, and explanations.
+- Displays API errors and loading states.
+
+---
+
+## 8. Backend API
 
 The current backend exposes the following endpoints:
 
@@ -397,7 +467,7 @@ The values shown above are illustrative. Actual results depend on the repository
 
 ---
 
-## 8. Project Structure
+## 9. Project Structure
 
 ```text
 CodePulse/
@@ -440,7 +510,7 @@ The structure may expand as additional modules are implemented.
 
 ---
 
-## 9. Development Setup
+## 10. Development Setup
 
 ### Prerequisites
 
@@ -498,7 +568,7 @@ A successful response indicates that the backend API is running.
 
 ---
 
-## 10. Development Approach
+## 11. Development Approach
 
 CodePulse follows an incremental development workflow:
 
@@ -508,15 +578,15 @@ CodePulse follows an incremental development workflow:
 4. Repository file-tree analysis.
 5. Repository health indicators.
 6. File-size anomaly detection.
-7. Explainable insights and advanced analysis.
-8. Dashboard integration and visualization.
+7. Live dashboard integration.
+8. Explainable insights and advanced analysis.
 9. Testing, refinement, documentation, and deployment.
 
 Each module is developed, tested, reviewed, and documented before moving to the next stage.
 
 ---
 
-## 11. Current Project Status
+## 12. Current Project Status
 
 | Component | Status |
 |---|---|
@@ -530,15 +600,18 @@ Each module is developed, tested, reviewed, and documented before moving to the 
 | Repository health indicators | Implemented and tested |
 | File-size anomaly detection | Implemented and tested |
 | Explainable anomaly results | Implemented |
+| Live repository overview dashboard | Implemented and tested |
+| Repository health dashboard | Implemented and tested |
+| File-size anomaly dashboard | Implemented and tested |
 | Advanced recommendations | Planned |
-| Dashboard integration with live analysis | Pending |
-| Database integration | Pending |
-| Historical monitoring | Pending |
-| Testing and deployment | In progress |
+| Database integration | Implemented |
+| Historical monitoring | Planned |
+| Advanced AI/ML analysis | Planned |
+| Deployment | Planned |
 
 ---
 
-## 12. Project Vision
+## 13. Project Vision
 
 The long-term vision of CodePulse is to make repository health easier to understand by combining meaningful software metrics, statistical anomaly detection, and explainable recommendations in one platform.
 
@@ -547,6 +620,7 @@ CodePulse is intended to complement existing development and code-quality tools 
 The goal is to help developers move beyond raw repository statistics and understand what those statistics mean for software quality and maintenance.
 
 ---
+
 **Project:** CodePulse
 **Category:** Software Development / Repository Analytics
 **Development Status:** Active Development
