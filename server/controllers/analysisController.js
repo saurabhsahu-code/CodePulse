@@ -4,11 +4,14 @@ import { validateGitHubUrl } from "../utils/githubValidator.js";
 import {
   getRepositoryDetails,
   getRepositoryTree,
+  getRepositoryCommits,
 } from "../services/githubService.js";
 
 import { analyzeFileTree } from "../utils/fileAnalyzer.js";
 import { analyzeRepositoryHealth } from "../utils/healthAnalyzer.js";
 import { analyzeFileSizeAnomalies } from "../utils/anomalyAnalyzer.js";
+import { analyzeRepositoryActivity } from "../utils/activityAnalyzer.js";
+
 
 export const analyzeRepository = async (req, res) => {
   try {
@@ -38,6 +41,28 @@ export const analyzeRepository = async (req, res) => {
     }
 
     const metadata = repositoryResult.data;
+    // Step 3: Retrieve and analyze recent commit activity.
+    const activitySince = new Date(
+      Date.now() - 90 * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    const activityResult = await getRepositoryCommits(
+      owner,
+      repository,
+      activitySince
+    );
+
+    // Keep activity analysis separate from core repository analysis.
+    // A GitHub activity request failure should not stop file analysis.
+    const activity = activityResult.success
+      ? analyzeRepositoryActivity(activityResult.data, {
+        pagination: activityResult.pagination,
+      })
+      : {
+        status: "unavailable",
+        dataCompleteness: "unavailable",
+        explanation: activityResult.message,
+      };
 
     // Step 3: Retrieve repository file tree.
     const treeResult = await getRepositoryTree(
@@ -88,6 +113,7 @@ export const analyzeRepository = async (req, res) => {
         metadata,
         tree,
         health,
+        activity,
         anomalies: {
           ...anomalies,
           sourceTreeTruncated: tree.truncated,

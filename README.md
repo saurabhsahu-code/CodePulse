@@ -4,7 +4,7 @@
 
 CodePulse is a web-based repository analysis platform designed to help developers understand the health, maintainability, and potential risks of their software projects.
 
-It transforms repository information into understandable insights through structured analysis, transparent health indicators, explainable anomaly detection, and visual codebase analytics.
+It transforms repository information into understandable insights through structured analysis, transparent health indicators, explainable anomaly detection, repository activity analysis, and visual codebase analytics.
 
 **Development Status:** Active Development
 
@@ -24,6 +24,7 @@ CodePulse aims to bring relevant repository health indicators together and prese
 - Identify potential anomalies and unusual patterns.
 - Provide understandable explanations for detected issues.
 - Highlight maintainability concerns and potential risks.
+- Analyze recent repository commit activity and contributor participation.
 - Present repository insights through a visual dashboard.
 - Visualize programming-language distribution and codebase composition.
 - Help developers make informed maintenance decisions.
@@ -126,13 +127,29 @@ CodePulse aims to bring relevant repository health indicators together and prese
 - Empty-state handling when language distribution data is unavailable.
 - Implemented using React and Tailwind CSS without an additional chart-library dependency.
 
+**9. Repository Activity Analysis**
+
+- Retrieval of recent repository commits through the GitHub REST API.
+- Analysis of commit activity over a rolling 90-day period.
+- Commit count and average commits per day and per week.
+- Unique contributor count based on available GitHub author accounts.
+- Latest commit information, including author, date, and commit link.
+- Calculation of days since the latest commit.
+- Activity classification into active, moderate, low, and inactive categories.
+- Human-readable explanations of the activity classification.
+- Paginated commit retrieval with a maximum of five pages and 100 commits per page.
+- Pagination metadata showing retrieval completeness, pages fetched, and truncation status.
+- Partial-result handling when later pagination requests fail.
+- Graceful handling of unavailable activity data without stopping the main repository analysis.
+- Dashboard cards displaying activity metrics, activity status, latest commit, and data completeness.
+
 ### Planned Features
 
 The following features are part of the intended product scope and are not yet fully implemented:
 
 - **Explainable Insights:** Extend explanations and provide more context about detected repository concerns.
 - **Advanced Recommendations:** Provide actionable suggestions based on analysis results.
-- **Historical Monitoring:** Track changes in repository health over time.
+- **Historical Monitoring:** Track changes in repository health and activity over time.
 - **Advanced Analysis:** Extend repository analysis with additional maintainability and code-quality metrics.
 - **Database Integration:** Store repository analysis results and historical data.
 - **AI/ML Exploration:** Evaluate whether machine-learning techniques can improve future repository analysis and recommendations.
@@ -151,9 +168,10 @@ The following features are part of the intended product scope and are not yet fu
 | API Framework | Express.js | REST API development |
 | Repository Integration | GitHub REST API | Repository data retrieval |
 | Version Control | Git and GitHub | Source-code management |
-| Analysis Engine | JavaScript | Repository file, health, and anomaly analysis |
+| Analysis Engine | JavaScript | Repository file, health, activity, and anomaly analysis |
 | Statistical Method | Log-transformed IQR | File-size outlier detection |
-| Visualization | React and Tailwind CSS | Language distribution visualization |
+| Activity Analysis | JavaScript | Commit activity and contributor analysis |
+| Visualization | React and Tailwind CSS | Repository metrics and language distribution |
 | Database | MongoDB | Planned data persistence |
 | AI/ML | To be evaluated | Future anomaly detection and recommendations |
 
@@ -165,7 +183,7 @@ Technology selections may evolve as development progresses.
 
 CodePulse currently supports analysis of publicly accessible GitHub repositories.
 
-The analysis process retrieves repository metadata and its file tree, calculates repository metrics, evaluates health indicators, and detects unusually large source files.
+The analysis process retrieves repository metadata and its file tree, calculates repository metrics, evaluates health indicators, detects unusually large source files, and analyzes recent commit activity.
 
 ### Repository File-Tree Analysis
 
@@ -325,6 +343,75 @@ The visualization uses React and Tailwind CSS and does not require an additional
 
 **Important:** Language percentages are calculated from the files classified into programming-language groups. They do not necessarily represent the percentage of every file in the repository.
 
+### Repository Activity Analysis
+
+CodePulse analyzes recent commit activity to provide an overview of repository development activity and contributor participation.
+
+The analysis uses commit information retrieved through the GitHub REST API.
+
+#### Analysis Period
+
+- The activity analysis uses a rolling 90-day period.
+- Commits outside the analysis period are excluded.
+- Invalid commit dates and future-dated commits are excluded from the activity calculations.
+- Commit retrieval is paginated, with a maximum of five pages and 100 commits per page (up to 500 retrieved commits).
+
+#### Activity Metrics
+
+| Metric | Description |
+|---|---|
+| Total Commits | Number of valid commits included in the analysis period |
+| Contributors | Number of unique available GitHub contributor accounts |
+| Commits Per Day | Average commits per day across the analysis period |
+| Commits Per Week | Average commits per week across the analysis period |
+| Latest Commit | Most recent valid commit in the analysis period |
+| Days Since Last Commit | Number of days since the latest commit |
+
+Contributor counts are based on available GitHub author account information. Commits without an associated GitHub login are not counted as unique contributors.
+
+#### Activity Classification
+
+CodePulse classifies repository activity using the time elapsed since the latest commit:
+
+| Activity Status | Condition | Meaning |
+|---|---|---|
+| Active | Latest commit within 7 days | Recent commit activity detected |
+| Moderate | Latest commit within 8–30 days | Some recent activity, but at a lower frequency |
+| Low | Latest commit more than 30 days ago | Limited recent activity |
+| Inactive | No valid commits in the analysis period | No qualifying recent commit activity detected |
+
+These categories are heuristic indicators. They do not independently measure development quality, project health, or the importance of individual commits.
+
+#### Pagination and Data Completeness
+
+GitHub commit retrieval uses pagination to collect commit records.
+
+| Property | Description |
+|---|---|
+| Commits Per Page | Maximum of 100 |
+| Maximum Pages | 5 |
+| Maximum Retrieved Commits | 500 |
+| Complete | All required commit pages were retrieved |
+| Limit Reached | The configured retrieval limit was reached |
+| Partial | Some pages were retrieved, but a later request failed |
+
+The activity response includes pagination information such as pages retrieved, maximum pages, maximum commits, truncation status, and any retrieval warning.
+
+When a later page request fails, previously retrieved commits can still be analyzed and returned with partial-data information.
+
+If commit retrieval is unavailable, the main repository analysis can still succeed. The activity section reports that activity data is unavailable instead of preventing the rest of the dashboard from displaying.
+
+#### Current Limitations
+
+- The analysis covers a rolling 90-day period, not the complete repository history.
+- Commit retrieval is limited to a maximum of 500 commits per analysis request.
+- A repository with more qualifying commits than the retrieval limit may have incomplete activity metrics.
+- Contributor counts depend on GitHub author account information being available.
+- Commit frequency is a descriptive average, not a measure of code quality or productivity.
+- Activity classifications are heuristic thresholds, not universal standards.
+- The current implementation does not persist historical activity snapshots.
+- The analysis does not evaluate commit-message quality, code changes, or the complexity of individual contributions.
+
 ### General Analysis Limitations
 
 - Maintenance activity uses the last push date and does not independently measure development quality.
@@ -333,6 +420,8 @@ The visualization uses React and Tailwind CSS and does not require an additional
 - Language classification is based on file extensions. It does not inspect source-code contents or reproduce GitHub Linguist's language-detection algorithm.
 - A truncated GitHub file tree can affect the completeness of analysis.
 - Health indicators are heuristic assessments, not definitive measurements of software quality.
+- File-size anomalies do not automatically indicate defective code.
+- Repository activity metrics describe recent commit history and do not measure developer productivity.
 - Advanced recommendations, historical monitoring, database persistence, and AI/ML-based recommendations are not yet implemented.
 
 ---
@@ -359,6 +448,23 @@ The dashboard displays:
 - Primary programming language.
 - Total files and directories.
 - Source files and supporting files.
+
+### Repository Activity
+
+The dashboard includes a dedicated Repository Activity section displaying:
+
+- Total commits during the 90-day analysis period.
+- Number of unique available contributors.
+- Average commits per day.
+- Average commits per week.
+- Activity status with an explanation.
+- Days since the latest commit.
+- Latest commit author and date.
+- Link to view the latest commit on GitHub.
+- Commit retrieval completeness information.
+- Pages retrieved, maximum commit limit, and truncation status.
+- Warnings when commit retrieval is incomplete.
+- A fallback message when activity data is unavailable.
 
 ### Repository Health
 
@@ -404,7 +510,7 @@ The current backend exposes the following endpoints:
 | GET | `/` | Backend welcome route |
 | GET | `/api/health` | API health check |
 | POST | `/api/repositories/validate` | Validate a GitHub repository URL |
-| POST | `/api/repositories/analyze` | Retrieve repository metadata and analyze its file tree, health indicators, and file-size anomalies |
+| POST | `/api/repositories/analyze` | Retrieve repository metadata and analyze its file tree, health indicators, file-size anomalies, and recent activity |
 
 ### Repository Analysis Request
 
@@ -420,14 +526,63 @@ The current backend exposes the following endpoints:
 }
 ```
 
-The successful response contains four main data sections:
+The successful response contains five main data sections:
 
 - **metadata:** Repository details retrieved from GitHub.
 - **tree:** File counts, language distribution, README detection, and file-tree completeness.
 - **health:** Overall health status and seven individual health indicators with values, statuses, and explanations.
+- **activity:** Recent commit activity, contributor metrics, activity classification, latest commit, and pagination completeness information.
 - **anomalies:** File-size anomaly detection status, statistical method, language-specific thresholds, detected files, and explanations.
 
 The frontend uses the `tree.languages` data from the analysis response to generate the Language Distribution visualization.
+
+Activity retrieval is handled separately from the main repository metadata and file-tree analysis. If activity retrieval fails, the activity section reports an unavailable status while the other analysis results can still be returned.
+
+### Activity Response Structure
+
+The following is an illustrative structure. Actual values depend on the repository being analyzed.
+
+```json
+{
+  "status": "completed",
+  "analysisPeriodDays": 90,
+  "commitCount": 152,
+  "commitsPerDay": 1.69,
+  "commitsPerWeek": 11.82,
+  "contributorCount": 46,
+  "activityStatus": "active",
+  "daysSinceLastCommit": 1,
+  "latestCommit": {
+    "sha": "example-commit-sha",
+    "url": "https://github.com/facebook/react/commit/example-commit-sha",
+    "author": "example-user",
+    "authorName": "Example Contributor",
+    "date": "2026-11-12T15:46:50Z"
+  },
+  "pagination": {
+    "status": "complete",
+    "pagesFetched": 2,
+    "maxPages": 5,
+    "maxCommits": 500,
+    "isComplete": true,
+    "truncated": false,
+    "warning": null
+  },
+  "dataCompleteness": "complete",
+  "explanation": "Recent commit activity was detected within the last 7 days."
+}
+```
+
+The values above are illustrative, not fixed API output.
+
+Possible activity retrieval completeness statuses include:
+
+- `complete`
+- `limit_reached`
+- `partial`
+- `unavailable` for an activity retrieval failure
+
+When activity retrieval is unavailable, the response contains an unavailable status and an explanation instead of the completed activity metrics.
 
 ### Anomaly Response Structure
 
@@ -545,6 +700,7 @@ CodePulse/
 │   ├── services/
 │   │   └── githubService.js
 │   ├── utils/
+│   │   ├── activityAnalyzer.js
 │   │   ├── anomalyAnalyzer.js
 │   │   ├── fileAnalyzer.js
 │   │   ├── githubValidator.js
@@ -630,8 +786,9 @@ CodePulse follows an incremental development workflow:
 6. File-size anomaly detection.
 7. Live dashboard integration.
 8. Language distribution and codebase visualization.
-9. Explainable insights and advanced analysis.
-10. Testing, refinement, documentation, and deployment.
+9. Repository activity analysis.
+10. Explainable insights and advanced analysis.
+11. Testing, refinement, documentation, and deployment.
 
 Each module is developed, tested, reviewed, and documented before moving to the next stage.
 
@@ -655,6 +812,8 @@ Each module is developed, tested, reviewed, and documented before moving to the 
 | Repository health dashboard | Implemented and tested |
 | File-size anomaly dashboard | Implemented and tested |
 | Language distribution visualization | Implemented and tested |
+| Repository activity analysis | Implemented and tested |
+| Repository activity dashboard | Implemented and tested |
 | Advanced recommendations | Planned |
 | Database integration | Planned |
 | Historical monitoring | Planned |
@@ -665,7 +824,7 @@ Each module is developed, tested, reviewed, and documented before moving to the 
 
 ## 13. Project Vision
 
-The long-term vision of CodePulse is to make repository health easier to understand by combining meaningful software metrics, statistical anomaly detection, visual codebase analytics, and explainable recommendations in one platform.
+The long-term vision of CodePulse is to make repository health easier to understand by combining meaningful software metrics, statistical anomaly detection, repository activity analysis, visual codebase analytics, and explainable recommendations in one platform.
 
 CodePulse is intended to complement existing development and code-quality tools rather than simply duplicate their functionality.
 

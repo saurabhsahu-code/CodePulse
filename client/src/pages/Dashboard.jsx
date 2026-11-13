@@ -49,6 +49,7 @@ function Dashboard() {
   const metadata = analysis?.metadata;
   const tree = analysis?.tree;
   const health = analysis?.health;
+  const activity = analysis?.activity;
 
   const languageDistribution = Object.entries(
     tree?.languages ?? {}
@@ -96,6 +97,12 @@ function Dashboard() {
     needs_attention: "bg-red-50 text-red-700",
     info: "bg-blue-50 text-blue-700",
     unknown: "bg-slate-100 text-slate-600",
+  };
+  const activityStatusStyles = {
+    active: "bg-emerald-50 text-emerald-700",
+    moderate: "bg-amber-50 text-amber-700",
+    low: "bg-orange-50 text-orange-700",
+    inactive: "bg-red-50 text-red-700",
   };
 
   const anomalyData = analysis?.anomalies;
@@ -247,6 +254,194 @@ function Dashboard() {
               ))}
             </div>
           </section>
+
+          {/* Repository activity */}
+          {activity?.status === "completed" ? (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Repository Activity
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Commit activity and contributor insights over the last{" "}
+                  {activity.analysisPeriodDays} days.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  {
+                    label: "Total Commits",
+                    value: activity.commitCount.toLocaleString(),
+                  },
+                  {
+                    label: "Contributors",
+                    value: activity.contributorCount.toLocaleString(),
+                  },
+                  {
+                    label: "Commits Per Day",
+                    value: activity.commitsPerDay,
+                  },
+                  {
+                    label: "Commits Per Week",
+                    value: activity.commitsPerWeek,
+                  },
+                ].map((metric) => (
+                  <article
+                    key={metric.label}
+                    className="rounded-xl border border-slate-200 bg-white p-5"
+                  >
+                    <p className="text-sm font-medium text-slate-500">
+                      {metric.label}
+                    </p>
+                    <p className="mt-3 text-2xl font-bold text-slate-900">
+                      {metric.value}
+                    </p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* Activity status */}
+                <article className="rounded-xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-medium text-slate-500">
+                    Activity Status
+                  </p>
+
+                  <span
+                    className={`mt-3 inline-block rounded-full px-3 py-1.5 text-xs font-semibold ${activityStatusStyles[activity.activityStatus] ||
+                      "bg-slate-100 text-slate-600"
+                      }`}
+                  >
+                    {activity.activityStatus.toUpperCase()}
+                  </span>
+
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    {activity.explanation}
+                  </p>
+
+                  <p className="mt-3 text-xs text-slate-500">
+                    {activity.daysSinceLastCommit === null
+                      ? "No recent commit date available."
+                      : `Latest commit: ${activity.daysSinceLastCommit} day(s) ago`}
+                  </p>
+                </article>
+
+                {/* Latest commit */}
+                <article className="rounded-xl border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-medium text-slate-500">
+                    Latest Commit
+                  </p>
+
+                  {activity.latestCommit ? (
+                    <>
+                      <p className="mt-3 font-semibold text-slate-900">
+                        {activity.latestCommit.authorName}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        @{activity.latestCommit.author || "Unknown"}
+                      </p>
+
+                      <p className="mt-3 text-xs text-slate-500">
+                        {new Date(activity.latestCommit.date).toLocaleString()}
+                      </p>
+
+                      <a
+                        href={activity.latestCommit.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+                      >
+                        View Commit →
+                      </a>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">
+                      No commits found during the analysis period.
+                    </p>
+                  )}
+                </article>
+              </div>
+
+              {/* Data completeness */}
+              <article className="rounded-xl border border-slate-200 bg-white p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      Analysis Data Completeness
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      GitHub commit retrieval information.
+                    </p>
+                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ${activity.dataCompleteness === "complete"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                      }`}
+                  >
+                    {(activity.dataCompleteness || "unknown")
+                      .replaceAll("_", " ")
+                      .toUpperCase()}
+                  </span>
+                </div>
+
+                {activity.pagination && (
+                  <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-slate-500">Pages Retrieved</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {activity.pagination.pagesFetched}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">Maximum Commits</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {activity.pagination.maxCommits.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">Truncated</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {activity.pagination.truncated ? "Yes" : "No"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activity.pagination?.warning && (
+                  <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    {activity.pagination.warning}
+                  </p>
+                )}
+              </article>
+            </section>
+          ) : activity?.status === "unavailable" ? (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Repository Activity
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Commit activity and contributor insights.
+                </p>
+              </div>
+
+              <article className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                <h3 className="font-semibold text-amber-800">
+                  Activity Data Unavailable
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-amber-700">
+                  {activity.explanation ||
+                    "GitHub activity information could not be retrieved. Other repository analysis results are still available."}
+                </p>
+              </article>
+            </section>
+          ) : null}
 
           {/* Codebase summary */}
           {tree && (

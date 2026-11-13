@@ -124,3 +124,92 @@ export const getRepositoryTree = async (
     },
   };
 };
+
+
+const COMMITS_PER_PAGE = 100;
+const MAX_COMMIT_PAGES = 5;
+
+// Feature 3.7: Retrieve recent repository commits with pagination.
+export const getRepositoryCommits = async (
+  owner,
+  repository,
+  since
+) => {
+  const commits = [];
+  let pagesFetched = 0;
+  let isComplete = false;
+
+  for (let page = 1; page <= MAX_COMMIT_PAGES; page++) {
+    const response = await fetch(
+      `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/commits?since=${encodeURIComponent(since)}&per_page=${COMMITS_PER_PAGE}&page=${page}`,
+      {
+        method: "GET",
+        headers: getGitHubHeaders(),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+
+    const result = await handleGitHubResponse(response);
+
+    if (!result.success) {
+      // Return the error if the first page fails.
+      if (pagesFetched === 0) {
+        return result;
+      }
+
+      // Preserve retrieved commits if a later page fails.
+      return {
+        success: true,
+        data: commits,
+        pagination: {
+          status: "partial",
+          pagesFetched,
+          maxPages: MAX_COMMIT_PAGES,
+          maxCommits: COMMITS_PER_PAGE * MAX_COMMIT_PAGES,
+          isComplete: false,
+          truncated: true,
+          warning: result.message,
+        },
+      };
+    }
+
+    const pageCommits = result.data;
+
+    pagesFetched++;
+
+    commits.push(
+      ...pageCommits.map((item) => ({
+        sha: item.sha,
+        url: item.html_url,
+        author: item.author?.login ?? null,
+        authorName: item.commit.author?.name ?? "Unknown",
+        date: item.commit.author?.date ?? null,
+      }))
+    );
+
+    // A short page means no more commits are available.
+    if (pageCommits.length < COMMITS_PER_PAGE) {
+      isComplete = true;
+      break;
+    }
+  }
+
+  const limitReached =
+    !isComplete && pagesFetched === MAX_COMMIT_PAGES;
+
+  return {
+    success: true,
+    data: commits,
+    pagination: {
+      status: isComplete ? "complete" : "limit_reached",
+      pagesFetched,
+      maxPages: MAX_COMMIT_PAGES,
+      maxCommits: COMMITS_PER_PAGE * MAX_COMMIT_PAGES,
+      isComplete,
+      truncated: limitReached,
+      warning: limitReached
+        ? "The 500-commit retrieval limit was reached. Additional commits may exist."
+        : null,
+    },
+  };
+};
