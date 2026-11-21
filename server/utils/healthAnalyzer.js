@@ -166,12 +166,30 @@ const getAnalysisCompletenessStatus = (tree) => {
     };
   }
 
+  if (tree.truncated) {
+    return {
+      value: tree.completeness ?? null,
+      status: "needs_attention",
+      explanation:
+        "GitHub returned an incomplete file tree. Some files may be missing from the analysis.",
+    };
+  }
+
+  if (
+    typeof tree.completeness !== "string" ||
+    tree.completeness.trim().length === 0
+  ) {
+    return {
+      value: null,
+      status: "unknown",
+      explanation: "Analysis completeness information is unavailable.",
+    };
+  }
+
   return {
     value: tree.completeness,
-    status: tree.truncated ? "needs_attention" : "good",
-    explanation: tree.truncated
-      ? "GitHub returned an incomplete file tree. Some files may be missing from the analysis."
-      : "The complete file tree was retrieved successfully.",
+    status: "good",
+    explanation: "The complete file tree was retrieved successfully.",
   };
 };
 
