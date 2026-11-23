@@ -1,14 +1,22 @@
 
 const GITHUB_API = "https://api.github.com";
 
-const getGitHubHeaders = () => ({
-  Accept: "application/vnd.github+json",
-  "X-GitHub-Api-Version": "2022-11-28",
-  "User-Agent": "CodePulse",
-});
+const getGitHubHeaders = () => {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "CodePulse",
+  };
+
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
+  return headers;
+};
 
 // Handles GitHub API responses consistently.
-const handleGitHubResponse = async (response) => {
+export const handleGitHubResponse = async (response) => {
   if (response.ok) {
     return {
       success: true,
@@ -24,31 +32,135 @@ const handleGitHubResponse = async (response) => {
     };
   }
 
-  if (
-    response.status === 429 ||
-    (response.status === 403 &&
-      response.headers.get("x-ratelimit-remaining") === "0")
-  ) {
+  const rateLimitRemaining = response.headers.get("x-ratelimit-remaining");
+
+  // Primary rate limit: HTTP 429
+  if (response.status === 429) {
     return {
       success: false,
       statusCode: 429,
+      isRateLimit: true,
       message: "GitHub API rate limit exceeded.",
     };
   }
 
+  // HTTP 403 checks: primary rate limit, secondary rate limit, or access denial
   if (response.status === 403) {
+    if (rateLimitRemaining === "0") {
+      return {
+        success: false,
+        statusCode: 429,
+        isRateLimit: true,
+        message: "GitHub API rate limit exceeded.",
+      };
+    }
+
+    try {
+      const errorBody = await response.json();
+      const message = String(errorBody?.message ?? "").toLowerCase();
+      const docUrl = String(errorBody?.documentation_url ?? "").toLowerCase();
+      if (
+        message.includes("secondary rate limit") ||
+        message.includes("abuse detection") ||
+        docUrl.includes("secondary-rate-limits")
+      ) {
+        return {
+          success: false,
+          statusCode: 429,
+          isRateLimit: true,
+          message: "GitHub secondary rate limit exceeded.",
+        };
+      }
+    } catch {
+      // Ignore JSON parse error on non-JSON response.
+    }
+
+    // Ordinary permission / access denial:
+    // A Retry-After header alone is insufficient evidence of a rate limit.
     return {
       success: false,
       statusCode: 403,
+      isRateLimit: false,
       message: "GitHub denied the API request.",
+    };
+  }
+
+  // Handle server errors (e.g. 503 Service Unavailable with or without Retry-After)
+  if (response.status === 503) {
+    return {
+      success: false,
+      statusCode: 503,
+      isRateLimit: false,
+      message: "GitHub service is temporarily unavailable.",
     };
   }
 
   return {
     success: false,
-    statusCode: 502,
+    statusCode:
+      response.status >= 500 && response.status < 600 ? response.status : 502,
+    isRateLimit: false,
     message: "Unable to retrieve information from GitHub.",
   };
+};
+
+// Feature 3.3: Retrieve blob content by SHA for source-code metrics.
+export const getBlobContent = async (
+  owner,
+  repository,
+  fileSha,
+  options = {}
+) => {
+  try {
+    const response = await fetch(
+      `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/blobs/${encodeURIComponent(fileSha)}`,
+      {
+        method: "GET",
+        headers: getGitHubHeaders(),
+        signal: options.signal || AbortSignal.timeout(6000),
+      }
+    );
+
+    const result = await handleGitHubResponse(response);
+
+    if (!result.success) {
+      return result;
+    }
+
+    return {
+      success: true,
+      data: {
+        sha: result.data.sha,
+        size: result.data.size,
+        content: result.data.content,
+        encoding: result.data.encoding,
+      },
+    };
+  } catch (error) {
+    if (error.name === "TimeoutError") {
+      return {
+        success: false,
+        statusCode: 504,
+        timedOut: true,
+        message: "GitHub blob request timed out.",
+      };
+    }
+
+    if (error.name === "AbortError") {
+      return {
+        success: false,
+        statusCode: 499,
+        aborted: true,
+        message: "GitHub blob request was aborted.",
+      };
+    }
+
+    return {
+      success: false,
+      statusCode: 502,
+      message: "Network error retrieving blob from GitHub.",
+    };
+  }
 };
 
 // Feature 3.1: Retrieve repository metadata.

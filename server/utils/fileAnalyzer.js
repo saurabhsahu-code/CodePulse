@@ -112,16 +112,12 @@ export const analyzeFileTree = (tree) => {
 
       languages[language] = (languages[language] || 0) + 1;
 
-      if (
-        Number.isFinite(file.size) &&
-        file.size >= 0
-      ) {
-        sourceFileSizes.push({
-          path: file.path,
-          size: file.size,
-          language,
-        });
-      }
+      sourceFileSizes.push({
+        path: file.path,
+        size: Number.isFinite(file.size) ? file.size : null,
+        language,
+        sha: file.sha ?? null,
+      });
     }
   }
 
