@@ -1,3 +1,8 @@
+import {
+  isCommentAnalysisSupported,
+  UNSUPPORTED_REASONS,
+} from "./commentAnalyzer.js";
+
 /**
  * Physical line metrics and completeness calculation for source code files.
  */
@@ -236,6 +241,13 @@ export const determineCompletenessStatus = ({
 
 /**
  * Aggregates file-level metrics into summary totals and language breakdown.
+ *
+ * Per-language comment support semantics:
+ * - "supported"       — all analyzed files for this language support comment analysis.
+ * - "partial_support" — some files support comment analysis, some do not (e.g., .jsx mixed with .js).
+ *                       Comment metrics reflect only the supported subset; unsupported files are
+ *                       excluded from the comment percentage denominator.
+ * - "unsupported"     — no analyzed files for this language support comment analysis.
  */
 export const aggregateSourceMetrics = (
   analyzedFiles = [],
@@ -250,6 +262,14 @@ export const aggregateSourceMetrics = (
   let totalLines = 0;
   let blankLines = 0;
   let nonBlankLines = 0;
+
+  let totalSingleLineComments = 0;
+  let totalBlockCommentLines = 0;
+  let totalCommentLines = 0;
+  let supportedTotalLines = 0;
+  let commentSupportedFiles = 0;
+  let commentUnsupportedFiles = 0;
+
   const languages = {};
 
   for (const file of analyzedFiles) {
@@ -264,12 +284,32 @@ export const aggregateSourceMetrics = (
     nonBlankLines += fileNonBlank;
 
     const lang = file.language || "Unknown";
+    const isSupported =
+      file.commentSupport !== undefined
+        ? file.commentSupport === "supported"
+        : isCommentAnalysisSupported(lang, { filePath: file.path });
+
     if (!languages[lang]) {
       languages[lang] = {
         filesAnalyzed: 0,
+        // Separate counters for supported-file comment metrics.
+        // These are internal; they feed the final per-language comment fields.
+        _supportedFiles: 0,
+        _unsupportedFiles: 0,
+        _supportedLines: 0,     // line count for supported files only (comment % denominator)
+        _singleLineSum: 0,
+        _blockSum: 0,
+        _totalCommentSum: 0,
+        _firstUnsupportedReason: null,
         totalLines: 0,
         blankLines: 0,
         nonBlankLines: 0,
+        // Public comment fields — resolved after all files are processed.
+        singleLineCommentLines: null,
+        blockCommentLines: null,
+        totalCommentLines: null,
+        commentLinePercentage: null,
+        commentSupport: null,
       };
     }
 
@@ -277,12 +317,125 @@ export const aggregateSourceMetrics = (
     languages[lang].totalLines += fileLines;
     languages[lang].blankLines += fileBlank;
     languages[lang].nonBlankLines += fileNonBlank;
+
+    if (isSupported) {
+      commentSupportedFiles += 1;
+      supportedTotalLines += fileLines;
+
+      const fileSingle = Number.isFinite(file.singleLineCommentLines)
+        ? file.singleLineCommentLines
+        : 0;
+      const fileBlock = Number.isFinite(file.blockCommentLines)
+        ? file.blockCommentLines
+        : 0;
+      const fileTotal = Number.isFinite(file.totalCommentLines)
+        ? file.totalCommentLines
+        : 0;
+
+      totalSingleLineComments += fileSingle;
+      totalBlockCommentLines += fileBlock;
+      totalCommentLines += fileTotal;
+
+      languages[lang]._supportedFiles += 1;
+      languages[lang]._supportedLines += fileLines;
+      languages[lang]._singleLineSum += fileSingle;
+      languages[lang]._blockSum += fileBlock;
+      languages[lang]._totalCommentSum += fileTotal;
+    } else {
+      commentUnsupportedFiles += 1;
+      languages[lang]._unsupportedFiles += 1;
+      if (languages[lang]._firstUnsupportedReason === null) {
+        languages[lang]._firstUnsupportedReason =
+          file.unsupportedReason ||
+          UNSUPPORTED_REASONS[lang] ||
+          `Comment analysis is not supported for ${lang}.`;
+      }
+    }
+  }
+
+  // Resolve per-language public comment fields now that all files have been counted.
+  for (const lang of Object.keys(languages)) {
+    const entry = languages[lang];
+    const sup = entry._supportedFiles;
+    const unsup = entry._unsupportedFiles;
+
+    if (sup > 0 && unsup === 0) {
+      // All files for this language are supported.
+      entry.commentSupport = "supported";
+      entry.singleLineCommentLines = entry._singleLineSum;
+      entry.blockCommentLines = entry._blockSum;
+      entry.totalCommentLines = entry._totalCommentSum;
+      entry.commentLinePercentage =
+        entry._supportedLines > 0
+          ? Number(
+              ((entry._totalCommentSum / entry._supportedLines) * 100).toFixed(2)
+            )
+          : 0;
+    } else if (sup > 0 && unsup > 0) {
+      // Mixed: some files supported, some not. Preserve metrics from supported subset.
+      entry.commentSupport = "partial_support";
+      entry.singleLineCommentLines = entry._singleLineSum;
+      entry.blockCommentLines = entry._blockSum;
+      entry.totalCommentLines = entry._totalCommentSum;
+      // Percentage denominator: lines from supported files only.
+      entry.commentLinePercentage =
+        entry._supportedLines > 0
+          ? Number(
+              ((entry._totalCommentSum / entry._supportedLines) * 100).toFixed(2)
+            )
+          : 0;
+      entry.unsupportedReason = entry._firstUnsupportedReason;
+    } else {
+      // All files for this language are unsupported.
+      entry.commentSupport = "unsupported";
+      entry.singleLineCommentLines = null;
+      entry.blockCommentLines = null;
+      entry.totalCommentLines = null;
+      entry.commentLinePercentage = null;
+      entry.unsupportedReason = entry._firstUnsupportedReason;
+    }
+
+    // Remove internal accumulator fields from the public response.
+    delete entry._supportedFiles;
+    delete entry._unsupportedFiles;
+    delete entry._supportedLines;
+    delete entry._singleLineSum;
+    delete entry._blockSum;
+    delete entry._totalCommentSum;
+    delete entry._firstUnsupportedReason;
   }
 
   const blankLinePercentage =
     totalLines > 0
       ? Number(((blankLines / totalLines) * 100).toFixed(2))
       : 0;
+
+  // Summary comment metrics calculation
+  let summarySingleComments;
+  let summaryBlockComments;
+  let summaryTotalComments;
+  let summaryCommentPercentage;
+
+  if (commentSupportedFiles > 0) {
+    summarySingleComments = totalSingleLineComments;
+    summaryBlockComments = totalBlockCommentLines;
+    summaryTotalComments = totalCommentLines;
+    summaryCommentPercentage =
+      supportedTotalLines > 0
+        ? Number(((totalCommentLines / supportedTotalLines) * 100).toFixed(2))
+        : 0;
+  } else if (analyzedFiles.length === 0) {
+    summarySingleComments = 0;
+    summaryBlockComments = 0;
+    summaryTotalComments = 0;
+    summaryCommentPercentage = 0;
+  } else {
+    // All analyzed files are unsupported
+    summarySingleComments = null;
+    summaryBlockComments = null;
+    summaryTotalComments = null;
+    summaryCommentPercentage = null;
+  }
 
   const completeness = determineCompletenessStatus({
     eligibleFilesCount,
@@ -304,12 +457,20 @@ export const aggregateSourceMetrics = (
       blankLines,
       nonBlankLines,
       blankLinePercentage,
+      singleLineCommentLines: summarySingleComments,
+      blockCommentLines: summaryBlockComments,
+      totalCommentLines: summaryTotalComments,
+      commentLinePercentage: summaryCommentPercentage,
+      commentSupportedFiles,
+      commentUnsupportedFiles,
     },
     fileCounts: {
       eligibleSourceFiles: eligibleFilesCount,
       analyzed: analyzedFiles.length,
       skipped: skippedFiles.length,
       failed: failedFiles.length,
+      commentSupported: commentSupportedFiles,
+      commentUnsupported: commentUnsupportedFiles,
     },
     skippedFiles,
     failedFiles,

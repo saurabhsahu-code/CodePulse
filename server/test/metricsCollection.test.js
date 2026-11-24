@@ -332,6 +332,13 @@ test("collectSourceCodeMetrics (Req 10): duplicate SHA triggers 1 fetch and attr
     totalLines: 4,
     blankLines: 1,
     nonBlankLines: 3,
+    singleLineCommentLines: null,
+    blockCommentLines: null,
+    totalCommentLines: null,
+    commentLinePercentage: null,
+    commentSupport: "unsupported",
+    unsupportedReason:
+      "JSX files (.jsx) contain JSX element child text boundaries that require multi-grammar XML/JSX parsing not currently supported for comment metrics.",
   });
 
   assert.deepEqual(result.data.languages.TypeScript, {
@@ -339,6 +346,11 @@ test("collectSourceCodeMetrics (Req 10): duplicate SHA triggers 1 fetch and attr
     totalLines: 4,
     blankLines: 1,
     nonBlankLines: 3,
+    singleLineCommentLines: 1,
+    blockCommentLines: 0,
+    totalCommentLines: 1,
+    commentLinePercentage: 25,
+    commentSupport: "supported",
   });
 });
 
@@ -688,4 +700,162 @@ test("handleGitHubResponse (Correction 4): HTTP 503 with Retry-After is NOT trea
   assert.equal(result.statusCode, 503);
   assert.equal(result.isRateLimit, false);
   assert.match(result.message, /temporarily unavailable/i);
+});
+
+// =========================================================================
+// Comment Metrics Integration Tests
+// =========================================================================
+
+test("collectSourceCodeMetrics: evaluates comment metrics separately for distinct languages sharing one SHA", async () => {
+  const sharedSha = createSha("d");
+  // Content has '# comment' which is a comment in Python, but NOT in JavaScript
+  const sharedContent = Buffer.from("# this is a comment in Python only\n").toString("base64");
+
+  let fetchCount = 0;
+  const mockBlobGetter = async (owner, repo, sha) => {
+    fetchCount++;
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        sha,
+        encoding: "base64",
+        content: sharedContent,
+      },
+    };
+  };
+
+  const eligibleFiles = [
+    {
+      path: "script.py",
+      language: "Python",
+      size: 50,
+      sha: sharedSha,
+    },
+    {
+      path: "script.js",
+      language: "JavaScript",
+      size: 50,
+      sha: sharedSha,
+    },
+  ];
+
+  const result = await collectSourceCodeMetrics("owner", "repo", eligibleFiles, {
+    getBlobFn: mockBlobGetter,
+  });
+
+  assert.equal(result.success, true);
+  // SHA deduplication: Exactly 1 fetch
+  assert.equal(fetchCount, 1);
+  assert.equal(result.data.fileCounts.analyzed, 2);
+
+  // Python: 1 single-line comment
+  assert.equal(result.data.languages.Python.singleLineCommentLines, 1);
+  assert.equal(result.data.languages.Python.totalCommentLines, 1);
+  assert.equal(result.data.languages.Python.commentSupport, "supported");
+
+  // JavaScript: 0 comments for this content
+  assert.equal(result.data.languages.JavaScript.singleLineCommentLines, 0);
+  assert.equal(result.data.languages.JavaScript.totalCommentLines, 0);
+  assert.equal(result.data.languages.JavaScript.commentSupport, "supported");
+
+  // Summary rollup
+  assert.equal(result.data.summary.totalLines, 2);
+  assert.equal(result.data.summary.totalCommentLines, 1);
+  assert.equal(result.data.summary.commentSupportedFiles, 2);
+  assert.equal(result.data.summary.commentUnsupportedFiles, 0);
+});
+
+test("collectSourceCodeMetrics: handles files with unsupported language by setting null comment metrics and unsupportedReason", async () => {
+  const vueSha = createSha("e");
+  const vueContent = Buffer.from("<template><div>// not js</div></template>\n").toString("base64");
+
+  const mockBlobGetter = async (owner, repo, sha) => {
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        sha,
+        encoding: "base64",
+        content: vueContent,
+      },
+    };
+  };
+
+  const eligibleFiles = [
+    {
+      path: "src/App.vue",
+      language: "Vue",
+      size: 60,
+      sha: vueSha,
+    },
+  ];
+
+  const result = await collectSourceCodeMetrics("owner", "repo", eligibleFiles, {
+    getBlobFn: mockBlobGetter,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.fileCounts.analyzed, 1);
+  assert.equal(result.data.summary.totalLines, 1);
+
+  // Vue language breakdown has null comment counts
+  assert.equal(result.data.languages.Vue.commentSupport, "unsupported");
+  assert.equal(result.data.languages.Vue.singleLineCommentLines, null);
+  assert.equal(result.data.languages.Vue.blockCommentLines, null);
+  assert.equal(result.data.languages.Vue.totalCommentLines, null);
+  assert.equal(result.data.languages.Vue.commentLinePercentage, null);
+  assert.ok(typeof result.data.languages.Vue.unsupportedReason === "string");
+
+  // Summary reflects unsupported status
+  assert.equal(result.data.summary.totalCommentLines, null);
+  assert.equal(result.data.summary.commentLinePercentage, null);
+  assert.equal(result.data.summary.commentSupportedFiles, 0);
+  assert.equal(result.data.summary.commentUnsupportedFiles, 1);
+});
+
+test("collectSourceCodeMetrics: conservatively classifies .jsx files as unsupported for comment metrics", async () => {
+  const jsxSha = createSha("f");
+  const jsxContent = Buffer.from("export const App = () => <div>{/* comment */}</div>;\n").toString("base64");
+
+  const mockBlobGetter = async (owner, repo, sha) => {
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        sha,
+        encoding: "base64",
+        content: jsxContent,
+      },
+    };
+  };
+
+  const eligibleFiles = [
+    {
+      path: "src/App.jsx",
+      language: "JavaScript",
+      size: 60,
+      sha: jsxSha,
+    },
+  ];
+
+  const result = await collectSourceCodeMetrics("owner", "repo", eligibleFiles, {
+    getBlobFn: mockBlobGetter,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.fileCounts.analyzed, 1);
+  assert.equal(result.data.summary.totalLines, 1);
+
+  // JavaScript language breakdown has null comment counts because of JSX
+  assert.equal(result.data.languages.JavaScript.commentSupport, "unsupported");
+  assert.equal(result.data.languages.JavaScript.singleLineCommentLines, null);
+  assert.equal(result.data.languages.JavaScript.totalCommentLines, null);
+  assert.match(result.data.languages.JavaScript.unsupportedReason, /JSX/i);
+
+  // Summary reflects unsupported status
+  assert.equal(result.data.summary.totalCommentLines, null);
+  assert.equal(result.data.summary.commentLinePercentage, null);
+  assert.equal(result.data.summary.commentSupportedFiles, 0);
+  assert.equal(result.data.summary.commentUnsupportedFiles, 1);
 });

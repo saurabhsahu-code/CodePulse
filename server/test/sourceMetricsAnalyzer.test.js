@@ -434,6 +434,11 @@ test("aggregateSourceMetrics: aggregates line totals, percentages, and languages
     totalLines: 50,
     blankLines: 10,
     nonBlankLines: 40,
+    singleLineCommentLines: 0,
+    blockCommentLines: 0,
+    totalCommentLines: 0,
+    commentLinePercentage: 0,
+    commentSupport: "supported",
   });
 
   assert.deepEqual(result.languages.TypeScript, {
@@ -441,6 +446,11 @@ test("aggregateSourceMetrics: aggregates line totals, percentages, and languages
     totalLines: 50,
     blankLines: 10,
     nonBlankLines: 40,
+    singleLineCommentLines: 0,
+    blockCommentLines: 0,
+    totalCommentLines: 0,
+    commentLinePercentage: 0,
+    commentSupport: "supported",
   });
 });
 
@@ -462,4 +472,439 @@ test("aggregateSourceMetrics: handles 0 lines safely without NaN percentage", ()
 
   assert.equal(result.summary.totalLines, 0);
   assert.equal(result.summary.blankLinePercentage, 0);
+});
+
+// ==========================================
+// 4. Comment Metrics Aggregation Tests
+// ==========================================
+
+test("aggregateSourceMetrics: aggregates comment metrics for supported files correctly", () => {
+  const analyzedFiles = [
+    {
+      path: "src/file1.js",
+      language: "JavaScript",
+      size: 500,
+      lines: 100,
+      blankLines: 20,
+      nonBlankLines: 80,
+      singleLineCommentLines: 15,
+      blockCommentLines: 10,
+      totalCommentLines: 20, // some overlap
+      commentLinePercentage: 20.0,
+      commentSupport: "supported",
+    },
+    {
+      path: "src/file2.js",
+      language: "JavaScript",
+      size: 600,
+      lines: 200,
+      blankLines: 40,
+      nonBlankLines: 160,
+      singleLineCommentLines: 25,
+      blockCommentLines: 15,
+      totalCommentLines: 35,
+      commentLinePercentage: 17.5,
+      commentSupport: "supported",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  assert.equal(result.summary.totalLines, 300);
+  assert.equal(result.summary.singleLineCommentLines, 40);
+  assert.equal(result.summary.blockCommentLines, 25);
+  assert.equal(result.summary.totalCommentLines, 55);
+  assert.equal(result.summary.commentLinePercentage, 18.33); // (55 / 300) * 100 = 18.33%
+  assert.equal(result.summary.commentSupportedFiles, 2);
+  assert.equal(result.summary.commentUnsupportedFiles, 0);
+
+  assert.equal(result.fileCounts.commentSupported, 2);
+  assert.equal(result.fileCounts.commentUnsupported, 0);
+
+  assert.equal(result.languages.JavaScript.singleLineCommentLines, 40);
+  assert.equal(result.languages.JavaScript.blockCommentLines, 25);
+  assert.equal(result.languages.JavaScript.totalCommentLines, 55);
+  assert.equal(result.languages.JavaScript.commentLinePercentage, 18.33);
+  assert.equal(result.languages.JavaScript.commentSupport, "supported");
+});
+
+test("aggregateSourceMetrics: handles mixture of supported and unsupported language files", () => {
+  const analyzedFiles = [
+    {
+      path: "src/app.js",
+      language: "JavaScript",
+      size: 400,
+      lines: 100,
+      blankLines: 10,
+      nonBlankLines: 90,
+      singleLineCommentLines: 20,
+      blockCommentLines: 5,
+      totalCommentLines: 25,
+      commentLinePercentage: 25.0,
+      commentSupport: "supported",
+    },
+    {
+      path: "src/Component.vue",
+      language: "Vue",
+      size: 300,
+      lines: 80,
+      blankLines: 10,
+      nonBlankLines: 70,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "Single-file components (Vue) require multi-grammar partitioning.",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  // Physical LOC metrics include all files
+  assert.equal(result.summary.totalLines, 180);
+  assert.equal(result.summary.blankLines, 20);
+  assert.equal(result.summary.nonBlankLines, 160);
+
+  // Comment summary aggregates only supported files
+  assert.equal(result.summary.singleLineCommentLines, 20);
+  assert.equal(result.summary.blockCommentLines, 5);
+  assert.equal(result.summary.totalCommentLines, 25);
+  // Percentage calculated against totalLines of supported files: (25 / 100) * 100 = 25.0%
+  assert.equal(result.summary.commentLinePercentage, 25.0);
+  assert.equal(result.summary.commentSupportedFiles, 1);
+  assert.equal(result.summary.commentUnsupportedFiles, 1);
+
+  assert.equal(result.fileCounts.commentSupported, 1);
+  assert.equal(result.fileCounts.commentUnsupported, 1);
+
+  // JavaScript language breakdown is supported
+  assert.equal(result.languages.JavaScript.commentSupport, "supported");
+  assert.equal(result.languages.JavaScript.totalCommentLines, 25);
+  assert.equal(result.languages.JavaScript.commentLinePercentage, 25.0);
+
+  // Vue language breakdown is unsupported with null counts
+  assert.equal(result.languages.Vue.commentSupport, "unsupported");
+  assert.equal(result.languages.Vue.singleLineCommentLines, null);
+  assert.equal(result.languages.Vue.blockCommentLines, null);
+  assert.equal(result.languages.Vue.totalCommentLines, null);
+  assert.equal(result.languages.Vue.commentLinePercentage, null);
+  assert.match(result.languages.Vue.unsupportedReason, /multi-grammar/i);
+});
+
+test("aggregateSourceMetrics: returns null comment summary when 100% of files are unsupported", () => {
+  const analyzedFiles = [
+    {
+      path: "src/Comp1.vue",
+      language: "Vue",
+      size: 300,
+      lines: 80,
+      blankLines: 10,
+      nonBlankLines: 70,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "Single-file components are not supported.",
+    },
+    {
+      path: "scripts/deploy.bat",
+      language: "Batch",
+      size: 200,
+      lines: 40,
+      blankLines: 5,
+      nonBlankLines: 35,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "Batch scripts are not supported.",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  // Physical LOC metrics are completely accurate
+  assert.equal(result.summary.totalLines, 120);
+  assert.equal(result.summary.blankLines, 15);
+  assert.equal(result.summary.nonBlankLines, 105);
+
+  // Comment metrics are strictly null (not silently treated as 0)
+  assert.equal(result.summary.singleLineCommentLines, null);
+  assert.equal(result.summary.blockCommentLines, null);
+  assert.equal(result.summary.totalCommentLines, null);
+  assert.equal(result.summary.commentLinePercentage, null);
+  assert.equal(result.summary.commentSupportedFiles, 0);
+  assert.equal(result.summary.commentUnsupportedFiles, 2);
+
+  assert.equal(result.fileCounts.commentSupported, 0);
+  assert.equal(result.fileCounts.commentUnsupported, 2);
+
+  // Physical completeness status remains complete
+  assert.equal(result.status, "complete");
+  assert.equal(result.isComplete, true);
+});
+
+test("aggregateSourceMetrics: enforces aggregation invariants across supported and unsupported files of the same language", () => {
+  const analyzedFiles = [
+    {
+      path: "src/util.js",
+      language: "JavaScript",
+      size: 500,
+      lines: 50,
+      blankLines: 5,
+      nonBlankLines: 45,
+      singleLineCommentLines: 10,
+      blockCommentLines: 10,
+      totalCommentLines: 15, // 5 lines had both single and block comments
+      commentLinePercentage: 30.0,
+      commentSupport: "supported",
+    },
+    {
+      path: "src/App.jsx",
+      language: "JavaScript",
+      size: 800,
+      lines: 100,
+      blankLines: 10,
+      nonBlankLines: 90,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "JSX files (.jsx) contain JSX element child text boundaries.",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  // Invariant 1: Physical LOC totals include all files (50 + 100 = 150)
+  assert.equal(result.summary.totalLines, 150);
+  assert.equal(result.summary.blankLines, 15);
+  assert.equal(result.summary.nonBlankLines, 135);
+
+  // Invariant 2: totalCommentLines <= totalLines
+  assert.ok(result.summary.totalCommentLines <= result.summary.totalLines);
+
+  // Invariant 3: Supported-file comment metrics are preserved in the summary
+  assert.equal(result.summary.singleLineCommentLines, 10);
+  assert.equal(result.summary.blockCommentLines, 10);
+  assert.equal(result.summary.totalCommentLines, 15);
+
+  // Invariant 4: Comment percentage denominator excludes unsupported files (15 / 50 * 100 = 30%)
+  assert.equal(result.summary.commentLinePercentage, 30.0);
+  assert.equal(result.summary.commentSupportedFiles, 1);
+  assert.equal(result.summary.commentUnsupportedFiles, 1);
+
+  // Invariant 5: Language breakdown is "partial_support" — supported-file metrics preserved, not discarded
+  assert.equal(result.languages.JavaScript.commentSupport, "partial_support");
+  assert.equal(result.languages.JavaScript.totalLines, 150);        // physical LOC covers all files
+  assert.equal(result.languages.JavaScript.singleLineCommentLines, 10);
+  assert.equal(result.languages.JavaScript.blockCommentLines, 10);
+  assert.equal(result.languages.JavaScript.totalCommentLines, 15);
+  // Percentage uses only the 50 supported-file lines as denominator
+  assert.equal(result.languages.JavaScript.commentLinePercentage, 30.0);
+  assert.ok(typeof result.languages.JavaScript.unsupportedReason === "string");
+  assert.ok(result.languages.JavaScript.unsupportedReason.length > 0);
+
+  // Invariant 6: Comment support does not alter LOC completeness status
+  assert.equal(result.status, "complete");
+  assert.equal(result.isComplete, true);
+});
+
+// ============================================================================
+// New regression tests for mixed-support aggregation (Req 8)
+// ============================================================================
+
+test("aggregateSourceMetrics: mixed-support — same language with multiple supported and one unsupported file", () => {
+  // Scenario: app.js (100 lines, 20 comments), utils.js (50 lines, 10 comments), component.jsx (200 lines, unsupported)
+  const analyzedFiles = [
+    {
+      path: "src/app.js",
+      language: "JavaScript",
+      size: 500,
+      lines: 100,
+      blankLines: 10,
+      nonBlankLines: 90,
+      singleLineCommentLines: 15,
+      blockCommentLines: 8,
+      totalCommentLines: 20,
+      commentLinePercentage: 20.0,
+      commentSupport: "supported",
+    },
+    {
+      path: "src/utils.js",
+      language: "JavaScript",
+      size: 300,
+      lines: 50,
+      blankLines: 5,
+      nonBlankLines: 45,
+      singleLineCommentLines: 8,
+      blockCommentLines: 4,
+      totalCommentLines: 10,
+      commentLinePercentage: 20.0,
+      commentSupport: "supported",
+    },
+    {
+      path: "src/component.jsx",
+      language: "JavaScript",
+      size: 800,
+      lines: 200,
+      blankLines: 20,
+      nonBlankLines: 180,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "JSX files (.jsx) contain JSX element child text boundaries.",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  // Physical LOC includes all three files (100 + 50 + 200 = 350)
+  assert.equal(result.summary.totalLines, 350);
+  assert.equal(result.summary.blankLines, 35);
+  assert.equal(result.summary.nonBlankLines, 315);
+
+  // Comment summary from supported files only (100 + 50 = 150 lines, 20 + 10 = 30 total comments)
+  assert.equal(result.summary.singleLineCommentLines, 23);   // 15 + 8
+  assert.equal(result.summary.blockCommentLines, 12);        // 8 + 4
+  assert.equal(result.summary.totalCommentLines, 30);        // 20 + 10
+  // Percentage: 30 / 150 * 100 = 20%
+  assert.equal(result.summary.commentLinePercentage, 20.0);
+  assert.equal(result.summary.commentSupportedFiles, 2);
+  assert.equal(result.summary.commentUnsupportedFiles, 1);
+
+  // Language breakdown: partial_support with metrics from supported files only
+  assert.equal(result.languages.JavaScript.commentSupport, "partial_support");
+  assert.equal(result.languages.JavaScript.totalLines, 350);         // all three files
+  assert.equal(result.languages.JavaScript.singleLineCommentLines, 23);
+  assert.equal(result.languages.JavaScript.blockCommentLines, 12);
+  assert.equal(result.languages.JavaScript.totalCommentLines, 30);
+  // Percentage denominator: 150 (supported-file lines only), not 350
+  assert.equal(result.languages.JavaScript.commentLinePercentage, 20.0);
+  assert.ok(typeof result.languages.JavaScript.unsupportedReason === "string");
+
+  // LOC completeness is unaffected
+  assert.equal(result.status, "complete");
+  assert.equal(result.isComplete, true);
+});
+
+test("aggregateSourceMetrics: all-supported — all files for a language are supported (no regression)", () => {
+  const analyzedFiles = [
+    {
+      path: "src/index.js",
+      language: "JavaScript",
+      size: 400,
+      lines: 80,
+      blankLines: 8,
+      nonBlankLines: 72,
+      singleLineCommentLines: 12,
+      blockCommentLines: 6,
+      totalCommentLines: 16,
+      commentLinePercentage: 20.0,
+      commentSupport: "supported",
+    },
+    {
+      path: "src/helpers.js",
+      language: "JavaScript",
+      size: 200,
+      lines: 40,
+      blankLines: 4,
+      nonBlankLines: 36,
+      singleLineCommentLines: 4,
+      blockCommentLines: 2,
+      totalCommentLines: 6,
+      commentLinePercentage: 15.0,
+      commentSupport: "supported",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  // Physical LOC totals
+  assert.equal(result.summary.totalLines, 120);
+
+  // All comment metrics should be numeric (not null)
+  assert.equal(result.summary.singleLineCommentLines, 16);
+  assert.equal(result.summary.blockCommentLines, 8);
+  assert.equal(result.summary.totalCommentLines, 22);
+  assert.equal(result.summary.commentLinePercentage, 18.33);  // 22 / 120 * 100
+  assert.equal(result.summary.commentSupportedFiles, 2);
+  assert.equal(result.summary.commentUnsupportedFiles, 0);
+
+  // Language status is "supported", not "partial_support"
+  assert.equal(result.languages.JavaScript.commentSupport, "supported");
+  assert.equal(result.languages.JavaScript.singleLineCommentLines, 16);
+  assert.equal(result.languages.JavaScript.blockCommentLines, 8);
+  assert.equal(result.languages.JavaScript.totalCommentLines, 22);
+  assert.equal(result.languages.JavaScript.commentLinePercentage, 18.33);
+  // "supported" language must NOT carry an unsupportedReason field
+  assert.equal(result.languages.JavaScript.unsupportedReason, undefined);
+
+  assert.equal(result.status, "complete");
+  assert.equal(result.isComplete, true);
+});
+
+test("aggregateSourceMetrics: all-unsupported — all files for a language are unsupported (no regression)", () => {
+  const analyzedFiles = [
+    {
+      path: "src/App.jsx",
+      language: "JavaScript",
+      size: 500,
+      lines: 100,
+      blankLines: 10,
+      nonBlankLines: 90,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "JSX files (.jsx) contain JSX element child text boundaries.",
+    },
+    {
+      path: "src/Header.jsx",
+      language: "JavaScript",
+      size: 300,
+      lines: 60,
+      blankLines: 6,
+      nonBlankLines: 54,
+      singleLineCommentLines: null,
+      blockCommentLines: null,
+      totalCommentLines: null,
+      commentLinePercentage: null,
+      commentSupport: "unsupported",
+      unsupportedReason: "JSX files (.jsx) contain JSX element child text boundaries.",
+    },
+  ];
+
+  const result = aggregateSourceMetrics(analyzedFiles, [], []);
+
+  // Physical LOC includes all files
+  assert.equal(result.summary.totalLines, 160);
+
+  // Comment metrics are null — not 0 — because no supported files exist
+  assert.equal(result.summary.singleLineCommentLines, null);
+  assert.equal(result.summary.blockCommentLines, null);
+  assert.equal(result.summary.totalCommentLines, null);
+  assert.equal(result.summary.commentLinePercentage, null);
+  assert.equal(result.summary.commentSupportedFiles, 0);
+  assert.equal(result.summary.commentUnsupportedFiles, 2);
+
+  // Language status is "unsupported" with null metrics and a reason
+  assert.equal(result.languages.JavaScript.commentSupport, "unsupported");
+  assert.equal(result.languages.JavaScript.singleLineCommentLines, null);
+  assert.equal(result.languages.JavaScript.blockCommentLines, null);
+  assert.equal(result.languages.JavaScript.totalCommentLines, null);
+  assert.equal(result.languages.JavaScript.commentLinePercentage, null);
+  assert.ok(typeof result.languages.JavaScript.unsupportedReason === "string");
+  assert.ok(result.languages.JavaScript.unsupportedReason.length > 0);
+
+  // Physical LOC completeness remains unaffected
+  assert.equal(result.status, "complete");
+  assert.equal(result.isComplete, true);
 });

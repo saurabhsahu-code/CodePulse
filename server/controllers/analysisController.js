@@ -23,6 +23,12 @@ export const createUnavailableMetrics = (eligibleSourceFiles, explanation) => ({
     blankLines: 0,
     nonBlankLines: 0,
     blankLinePercentage: 0,
+    singleLineCommentLines: 0,
+    blockCommentLines: 0,
+    totalCommentLines: 0,
+    commentLinePercentage: 0,
+    commentSupportedFiles: 0,
+    commentUnsupportedFiles: 0,
   },
   fileCounts: {
     eligibleSourceFiles: Array.isArray(eligibleSourceFiles)
@@ -31,6 +37,8 @@ export const createUnavailableMetrics = (eligibleSourceFiles, explanation) => ({
     analyzed: 0,
     skipped: 0,
     failed: 0,
+    commentSupported: 0,
+    commentUnsupported: 0,
   },
   skippedFiles: [],
   failedFiles: [],

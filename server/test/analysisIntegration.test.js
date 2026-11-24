@@ -219,4 +219,14 @@ test("analysisController: createUnavailableMetrics returns standardized schema w
   assert.equal(result.limits.perFileTimeoutMs, 6000);
   assert.equal(result.limits.globalTimeoutMs, 20000);
   assert.equal(result.explanation, "Custom failure reason");
+
+  // Comment metrics fallback fields
+  assert.equal(result.summary.singleLineCommentLines, 0);
+  assert.equal(result.summary.blockCommentLines, 0);
+  assert.equal(result.summary.totalCommentLines, 0);
+  assert.equal(result.summary.commentLinePercentage, 0);
+  assert.equal(result.summary.commentSupportedFiles, 0);
+  assert.equal(result.summary.commentUnsupportedFiles, 0);
+  assert.equal(result.fileCounts.commentSupported, 0);
+  assert.equal(result.fileCounts.commentUnsupported, 0);
 });

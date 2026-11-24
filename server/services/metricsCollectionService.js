@@ -3,6 +3,7 @@ import {
   calculateLineMetrics,
   aggregateSourceMetrics,
 } from "../utils/sourceMetricsAnalyzer.js";
+import { analyzeCommentMetrics } from "../utils/commentAnalyzer.js";
 
 export const DEFAULT_LIMITS = {
   maxFilesAnalyzed: 50,
@@ -398,15 +399,41 @@ export const collectSourceCodeMetrics = async (
           // 7. Calculate line metrics once for this SHA
           const lineMetrics = calculateLineMetrics(content);
 
-          // 8. Attribute line metrics to every file sharing this SHA using each file's own language
+          // 8. Attribute metrics to every file sharing this SHA, evaluating comment metrics per distinct language and file type
+          const commentMetricsCache = new Map();
+
           for (const file of mappedFiles) {
+            const lang = file.language || "Unknown";
+            const filePath = file.path || "";
+            const lowerPath = filePath.toLowerCase();
+            const fileTypeKey = lowerPath.endsWith(".jsx")
+              ? "jsx"
+              : lowerPath.endsWith(".tsx")
+                ? "tsx"
+                : "standard";
+            const cacheKey = `${lang}:${fileTypeKey}`;
+
+            if (!commentMetricsCache.has(cacheKey)) {
+              commentMetricsCache.set(
+                cacheKey,
+                analyzeCommentMetrics(content, lang, { filePath })
+              );
+            }
+            const commentMetrics = commentMetricsCache.get(cacheKey);
+
             analyzedFiles.push({
               path: file.path,
-              language: file.language || "Unknown",
+              language: lang,
               size: Number(file.size) || 0,
               lines: lineMetrics.totalLines,
               blankLines: lineMetrics.blankLines,
               nonBlankLines: lineMetrics.nonBlankLines,
+              singleLineCommentLines: commentMetrics.singleLineCommentLines,
+              blockCommentLines: commentMetrics.blockCommentLines,
+              totalCommentLines: commentMetrics.totalCommentLines,
+              commentLinePercentage: commentMetrics.commentLinePercentage,
+              commentSupport: commentMetrics.commentSupport,
+              unsupportedReason: commentMetrics.unsupportedReason,
             });
           }
         } catch (unexpectedError) {
